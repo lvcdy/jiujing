@@ -138,6 +138,9 @@ jobs:
           name: dist
           path: dist
 
+      - name: Add node_modules/.bin to PATH
+        run: echo "$GITHUB_WORKSPACE/node_modules/.bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Sync Tauri version
         run: node -e "const fs=require('fs'); const pkg=require('./package.json'); const path='src-tauri/tauri.conf.json'; const conf=JSON.parse(fs.readFileSync(path,'utf8')); conf.version=pkg.version; fs.writeFileSync(path, JSON.stringify(conf, null, 2));"
 
