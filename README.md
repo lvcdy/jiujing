@@ -11,6 +11,17 @@
 - big.js：高精度小数计算与格式化（避免浮点误差）
 - 纯 CSS：界面布局与风格化展示
 
+## 开发与构建
+
+首选包管理器为 pnpm。
+
+```bash
+pnpm install
+pnpm dev
+pnpm build
+pnpm preview
+```
+
 ## 算法与计算逻辑
 
 ### 1. 数据读取与结构化
