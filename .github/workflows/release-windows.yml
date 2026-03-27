@@ -34,11 +34,21 @@ jobs:
       - name: Install build tools (CI only)
         run: pnpm add -D electron electron-builder @tauri-apps/cli
 
+      - name: Build project
+        run: pnpm build
+
       - name: Upload node_modules artifact
         uses: actions/upload-artifact@v4
         with:
           name: node-modules
           path: node_modules
+          retention-days: 1
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
           retention-days: 1
 
   build-electron:
@@ -74,9 +84,14 @@ jobs:
           name: node-modules
           path: node_modules
 
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
       - name: Build Electron
         run: |
-          pnpm build
           pnpm exec electron-builder --win --publish never ${{ matrix.archFlag }}
 
       - name: Upload Electron artifact
@@ -118,6 +133,12 @@ jobs:
           name: node-modules
           path: node_modules
 
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
       - name: Sync Tauri version
         run: node -e "const fs=require('fs'); const pkg=require('./package.json'); const path='src-tauri/tauri.conf.json'; const conf=JSON.parse(fs.readFileSync(path,'utf8')); conf.version=pkg.version; fs.writeFileSync(path, JSON.stringify(conf, null, 2));"
 
@@ -126,9 +147,14 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          path: src-tauri/target
+          key: ${{ runner.os }}-rust-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+
       - name: Build Tauri
         run: |
-          pnpm build
           pnpm exec tauri build --target ${{ matrix.target }}
 
       - name: Package Tauri bundle
