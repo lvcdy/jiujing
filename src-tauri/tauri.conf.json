@@ -7,7 +7,7 @@
         "distDir": "../dist"
     },
     "package": {
-        "productName": "Jiujing Tauri",
+        "productName": "Jiujing",
         "version": "1.0.0"
     },
     "tauri": {

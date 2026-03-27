@@ -33,7 +33,7 @@
   },
   "build": {
     "appId": "com.lvcdy.jiujing.electron",
-    "productName": "Jiujing Electron",
+    "productName": "Jiujing",
     "files": [
       "dist/**",
       "electron/**",
@@ -45,6 +45,6 @@
     "win": {
       "target": "zip"
     },
-    "artifactName": "jiujing-electron-${version}-windows-${arch}.${ext}"
+    "artifactName": "jiujing-${version}-windows-${arch}.${ext}"
   }
 }
