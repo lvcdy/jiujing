@@ -1,5 +1,4 @@
 name: Release Windows Apps
-
 on:
   push:
     tags:

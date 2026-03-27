@@ -1,5 +1,4 @@
 {
-    "$schema": "https://tauri.app/schema.json",
     "identifier": "com.lvcdy.jiujing",
     "productName": "Jiujing",
     "version": "1.0.0",
