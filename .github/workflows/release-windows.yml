@@ -31,7 +31,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install build tools (CI only)
-        run: pnpm add -D electron electron-builder @tauri-apps/cli
+        run: pnpm add -D @tauri-apps/cli
 
       - name: Build project
         run: pnpm build

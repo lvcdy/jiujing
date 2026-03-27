@@ -31,11 +31,9 @@
 
     # sanitize the MUI_PAGE_DIRECTORY result to make sure it has a application name sub-folder
     Function instFilesPre
-      ${If} ${FileExists} "$INSTDIR\*"
-        ${StrContains} $0 "${APP_FILENAME}" $INSTDIR
-        ${If} $0 == ""
-          StrCpy $INSTDIR "$INSTDIR\${APP_FILENAME}"
-        ${endIf}
+      ${StrContains} $0 "${APP_FILENAME}" $INSTDIR
+      ${If} $0 == ""
+        StrCpy $INSTDIR "$INSTDIR\${APP_FILENAME}"
       ${endIf}
     FunctionEnd
   !endif
@@ -66,7 +64,12 @@
   !endif
 !else
   !ifndef removeDefaultUninstallWelcomePage
-    !insertmacro MUI_UNPAGE_WELCOME
+    !ifmacrodef customUnWelcomePage
+      !insertmacro customUnWelcomePage
+    !else
+      !insertmacro MUI_UNPAGE_WELCOME
+  !endif
+
   !endif
   !ifndef INSTALL_MODE_PER_ALL_USERS
     !insertmacro PAGE_INSTALL_MODE
@@ -140,7 +143,11 @@
       !ifdef INSTALL_MODE_PER_ALL_USERS
         !insertmacro setInstallModePerAllUsers
       !else
-        !insertmacro setInstallModePerUser
+        !ifdef INSTALL_MODE_PER_ALL_USERS_DEFAULT
+          !insertmacro setInstallModePerAllUsers
+        !else
+          !insertmacro setInstallModePerUser
+        !endif
       !endif
     ${endif}
   !endif
