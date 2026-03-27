@@ -1,4 +1,5 @@
 name: Release Windows Apps
+
 on:
   push:
     tags:
@@ -10,6 +11,8 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NODE_VERSION: 24
+  PNPM_VERSION: 10
 
 jobs:
   build-electron:
@@ -30,12 +33,12 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
       - name: Install dependencies
@@ -45,14 +48,14 @@ jobs:
         run: pnpm build
 
       - name: Build Electron
-        run: |
-          pnpm exec electron-builder --win --publish never ${{ matrix.archFlag }}
+        run: pnpm exec electron-builder --win --publish never ${{ matrix.archFlag }}
 
       - name: Upload Electron artifact
         uses: actions/upload-artifact@v4
         with:
           name: electron-${{ matrix.arch }}
           path: release/electron/*.zip
+          retention-days: 1
 
   build-tauri:
     name: Tauri (${{ matrix.arch }})
@@ -72,19 +75,19 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Sync Tauri version
-        run: node -e "const fs=require('fs'); const pkg=require('./package.json'); const path='src-tauri/tauri.conf.json'; const conf=JSON.parse(fs.readFileSync(path,'utf8')); conf.version=pkg.version; fs.writeFileSync(path, JSON.stringify(conf, null, 2));"
+        run: node scripts/sync-version.js
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -94,12 +97,11 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          path: src-tauri/target
-          key: ${{ runner.os }}-rust-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
 
       - name: Build Tauri
-        run: |
-          pnpm exec tauri build --target ${{ matrix.target }}
+        run: pnpm exec tauri build --target ${{ matrix.target }}
 
       - name: Package Tauri bundle
         shell: pwsh
@@ -107,13 +109,16 @@ jobs:
           $version = node -p "require('./package.json').version"
           $bundleDir = "src-tauri/target/${{ matrix.target }}/release/bundle"
           $zipName = "jiujing-tauri-$version-windows-${{ matrix.arch }}.zip"
-          Compress-Archive -Path "$bundleDir/*" -DestinationPath $zipName
+          if (Test-Path $bundleDir) {
+            Compress-Archive -Path "$bundleDir/*" -DestinationPath $zipName
+          }
 
       - name: Upload Tauri artifact
         uses: actions/upload-artifact@v4
         with:
           name: tauri-${{ matrix.arch }}
           path: jiujing-tauri-*.zip
+          retention-days: 1
 
   release:
     name: Create Release
@@ -131,3 +136,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*.zip
+          generate_release_notes: true
