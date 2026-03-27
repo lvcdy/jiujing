@@ -11,6 +11,61 @@
 - big.js：高精度小数计算与格式化（避免浮点误差）
 - 纯 CSS：界面布局与风格化展示
 
+## big.js 说明
+
+`big.js` 是一个高精度小数计算库，用来避免 JavaScript 原生 `number` 的浮点误差（例如 `0.1 + 0.2 !== 0.3`）。它适合金额、浓度、比例等需要稳定舍入与可控精度的场景。
+
+### 核心特点
+
+- 十进制高精度：内部以十进制表示，避免二进制浮点误差
+- API 简洁：提供加减乘除、比较、取整、格式化等常用操作
+- 可配置精度与舍入方式：通过 `Big.DP` 与 `Big.RM` 控制结果
+
+### 基础用法
+
+```ts
+import Big from "big.js";
+
+const a = new Big("0.1");
+const b = new Big("0.2");
+
+const c = a.plus(b);        // 0.3
+const d = a.times("3");     // 0.3
+
+console.log(c.toString());  // "0.3"
+```
+
+### 精度与舍入
+
+```ts
+import Big from "big.js";
+
+Big.DP = 10; // 小数位精度 (Decimal Places)
+Big.RM = 1;  // 舍入模式 (0: RoundDown, 1: RoundHalfUp, 2: RoundHalfEven, 3: RoundUp)
+
+const x = new Big("1").div("3");
+console.log(x.toString());  // "0.3333333333"
+```
+
+### 比较
+
+```ts
+import Big from "big.js";
+
+const a = new Big("2.50");
+const b = new Big("2.5");
+
+console.log(a.eq(b)); // true
+console.log(a.gt(b)); // false
+console.log(a.lt(b)); // false
+```
+
+### 在本项目中的使用
+
+- 输入值与表格数值会先转换为 `Big` 实例，避免中间计算出现浮点误差
+- 线性插值与双线性插值过程用 `Big` 的加减乘除完成，保证结果稳定
+- 输出阶段再统一做精度处理（保留两位小数），避免早期舍入带来累积误差
+
 ## 开发与构建
 
 首选包管理器为 pnpm。
