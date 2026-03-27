@@ -20,6 +20,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.1",
     "@types/big.js": "^6.2.2",
+    "@types/node": "^25.5.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react-oxc": "^0.4.3",

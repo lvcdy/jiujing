@@ -1,48 +1,48 @@
 {
-    "identifier": "com.lvcdy.jiujing",
-    "productName": "Jiujing",
-    "version": "1.0.0",
-    "build": {
-        "beforeBuildCommand": "pnpm build",
-        "beforeDevCommand": "pnpm dev"
-    },
-    "app": {
-        "windows": [
-            {
-                "title": "Jiujing",
-                "width": 800,
-                "height": 600,
-                "resizable": true,
-                "fullscreen": false
-            }
-        ],
-        "security": {
-            "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost"
-        }
-    },
-    "bundle": {
-        "active": true,
-        "targets": "all",
-        "icon": [
-            "icons/favicon.svg"
-        ],
-        "resources": [],
-        "externalBin": [],
-        "copyright": "",
-        "category": "DeveloperTool",
-        "shortDescription": "",
-        "longDescription": "",
-        "macOS": {
-            "frameworks": [],
-            "minimumSystemVersion": "10.13",
-            "exceptionDomain": "",
-            "signingIdentity": null,
-            "entitlements": null
-        },
-        "windows": {
-            "certificateThumbprint": null,
-            "digestAlgorithm": "sha256",
-            "timestampUrl": ""
-        }
+  "identifier": "com.lvcdy.jiujing",
+  "productName": "Jiujing",
+  "version": "1.0.0",
+  "build": {
+    "beforeBuildCommand": "pnpm build",
+    "beforeDevCommand": "pnpm dev"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Jiujing",
+        "width": 800,
+        "height": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost"
     }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/favicon.svg"
+    ],
+    "resources": [],
+    "externalBin": [],
+    "copyright": "",
+    "category": "DeveloperTool",
+    "shortDescription": "",
+    "longDescription": "",
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.13",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "entitlements": null
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    }
+  }
 }

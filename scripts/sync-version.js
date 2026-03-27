@@ -1,5 +1,4 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
 
 // 读取 package.json
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
