@@ -10,9 +10,41 @@ permissions:
   contents: write
 
 jobs:
+  setup-dependencies:
+    name: Setup Dependencies
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install build tools (CI only)
+        run: pnpm add -D electron electron-builder @tauri-apps/cli
+
+      - name: Upload node_modules artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-modules
+          path: node_modules
+          retention-days: 1
+
   build-electron:
     name: Electron (${{ matrix.arch }})
     runs-on: windows-latest
+    needs: setup-dependencies
     strategy:
       fail-fast: false
       matrix:
@@ -36,11 +68,11 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Electron build tools (CI only)
-        run: pnpm add -D electron electron-builder
+      - name: Download node_modules artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: node-modules
+          path: node_modules
 
       - name: Build Electron
         run: |
@@ -56,6 +88,7 @@ jobs:
   build-tauri:
     name: Tauri (${{ matrix.arch }})
     runs-on: windows-latest
+    needs: setup-dependencies
     strategy:
       fail-fast: false
       matrix:
@@ -79,14 +112,14 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Tauri CLI (CI only)
-        run: pnpm add -D @tauri-apps/cli
+      - name: Download node_modules artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: node-modules
+          path: node_modules
 
       - name: Sync Tauri version
-        run: node -e "const fs=require('fs'); const pkg=require('./package.json'); const path='src-tauri/tauri.conf.json'; const conf=JSON.parse(fs.readFileSync(path,'utf8')); conf.package.version=pkg.version; fs.writeFileSync(path, JSON.stringify(conf, null, 2));"
+        run: node -e "const fs=require('fs'); const pkg=require('./package.json'); const path='src-tauri/tauri.conf.json'; const conf=JSON.parse(fs.readFileSync(path,'utf8')); conf.version=pkg.version; fs.writeFileSync(path, JSON.stringify(conf, null, 2));"
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
