@@ -1,5 +1,54 @@
-# Vue 3 + TypeScript + Vite
+# 酒精浓度计算器
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+基于 Excel 数据表进行酒精浓度校正与换算的前端项目。
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## 技术栈
+
+- Vue 3 + `<script setup>`：组件化 UI 与响应式状态管理
+- TypeScript：类型约束与开发期提示
+- Vite：本地开发与生产构建
+- xlsx：在浏览器中读取 Excel 文件、解析工作表与单元格数据
+- big.js：高精度小数计算与格式化（避免浮点误差）
+- 纯 CSS：界面布局与风格化展示
+
+## 算法与计算逻辑
+
+### 1. 数据读取与结构化
+
+- 通过 `fetch` 读取 `assets` 中的 Excel 文件，使用 `XLSX.read` 解析
+- 将首行作为列坐标（温度），首列作为行坐标（酒精计读数）
+- 工作表单元格通过 `XLSX.utils.encode_cell` 进行索引定位
+
+### 2. 坐标定位（二分查找）
+
+- 目标输入为：酒精计读数与温度
+- 对行坐标与列坐标分别做二分查找，找出目标值两侧的索引区间
+- 支持坐标升序或降序的表格
+- 若目标值超出边界，退化为最近边界值
+
+### 3. 双线性插值（体积分数）
+
+- 取四个角点：$v_{11}$、$v_{12}$、$v_{21}$、$v_{22}$
+- 若行或列出现同值，退化为一维线性插值
+- 双线性插值公式：
+
+$$
+f(x, y)=(1-t_x)(1-t_y)v_{11}+t_x(1-t_y)v_{12}+(1-t_x)t_y v_{21}+t_x t_y v_{22}
+$$
+
+其中：
+- $t_x=(x-x_1)/(x_2-x_1)$，$t_y=(y-y_1)/(y_2-y_1)$
+
+### 4. 一维线性插值（质量分数）
+
+- 读取第二张表（体积分数 -> 质量分数）
+- 对体积分数进行一维线性插值：
+
+$$
+f(x)=y_1+(x-x_1)\cdot\frac{y_2-y_1}{x_2-x_1}
+$$
+
+### 5. 精度处理
+
+- 全部插值计算使用 `big.js`，避免浮点误差
+- 最终结果保留两位小数输出
