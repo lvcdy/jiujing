@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
+import Calculator from './components/Calculator.vue'
 </script>
 
 <template>
-  <HelloWorld />
+  <Calculator />
 </template>
