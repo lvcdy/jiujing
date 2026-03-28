@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { readExcelFile, bilinearInterpolate, getMassFromVolume, parseExcelCache } from '../utils/excel'
 import jiujingExcel from '../assets/jiujing.xlsx?url'
 import wenduExcel from '../assets/wendu.xlsx?url'
 import './Calculator.css'
 
 export default function Calculator() {
+  const { t, i18n } = useTranslation()
   const [alcohol, setAlcohol] = useState('')
   const [temperature, setTemperature] = useState('')
   const [result, setResult] = useState<{ vol: string; mass: string | null } | null>(null)
@@ -25,14 +27,14 @@ export default function Calculator() {
         setTimeout(() => alcoholInputRef.current?.focus(), 100)
       })
       .catch(() => {
-        setError('数据加载失败')
+        setError(t('error.loadFailed'))
         setLoading(false)
       })
-  }, [])
+  }, [t])
 
   const calculate = useCallback(() => {
     if (!alcohol || !temperature) {
-      setError('请输入完整数据')
+      setError(t('error.required'))
       return
     }
 
@@ -40,16 +42,16 @@ export default function Calculator() {
     const vol = bilinearInterpolate(Number(temperature), Number(alcohol))
 
     if (!vol) {
-      setError('计算失败')
+      setError(t('error.failed'))
       return
     }
 
     const mass = getMassFromVolume(Number(vol))
     setResult({ vol, mass })
-  }, [alcohol, temperature])
+  }, [alcohol, temperature, t])
 
   // 处理键盘事件
-  const handleKeyDown = (e: React.KeyboardEvent, field: 'alcohol' | 'temperature') => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent, field: 'alcohol' | 'temperature') => {
     // Enter 键：如果两个输入框都有值，直接计算；否则在酒精输入框时跳转到温度输入框
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -61,7 +63,7 @@ export default function Calculator() {
         temperatureInputRef.current?.focus()
       } else {
         // 在温度输入框但缺少数据，显示错误
-        setError('请输入完整数据')
+        setError(t('error.required'))
       }
     }
 
@@ -83,7 +85,7 @@ export default function Calculator() {
         temperatureInputRef.current?.select()
       }
     }
-  }
+  }, [alcohol, temperature, calculate, t])
 
   // 处理输入，支持中文输入法下的小数点
   const handleInputChange = (value: string, setter: (val: string) => void) => {
@@ -105,21 +107,32 @@ export default function Calculator() {
     alcoholInputRef.current?.focus()
   }
 
+  const toggleLanguage = () => {
+    const newLanguage = i18n.language === 'zh-CN' ? 'en-US' : 'zh-CN'
+    i18n.changeLanguage(newLanguage)
+    localStorage.setItem('language', newLanguage)
+  }
+
   return (
     <div className="calculator">
       <div className="glass-card">
         <header className="card-header">
-          <div className="logo">
-            <span className="icon">🧪</span>
-            <h1>酒精浓度计算器</h1>
+          <div className="header-content">
+            <div className="logo">
+              <span className="icon">🧪</span>
+              <h1>{t('app.title')}</h1>
+            </div>
+            <button className="language-btn" onClick={toggleLanguage}>
+              {i18n.language === 'zh-CN' ? 'EN' : '中文'}
+            </button>
           </div>
-          <p className="subtitle">基于温度校正的标准浓度计算</p>
+          <p className="subtitle">{t('app.subtitle')}</p>
         </header>
 
         <div className="card-body">
           <div className="input-grid">
             <div className="input-field">
-              <label>酒精计读数</label>
+              <label>{t('input.alcohol')}</label>
               <div className="input-wrapper">
                 <input
                   ref={alcoholInputRef}
@@ -128,7 +141,7 @@ export default function Calculator() {
                   value={alcohol}
                   onChange={(e) => handleInputChange(e.target.value, setAlcohol)}
                   onKeyDown={(e) => handleKeyDown(e, 'alcohol')}
-                  placeholder="0.0"
+                  placeholder={t('input.placeholder.alcohol')}
                   disabled={loading}
                 />
                 <span className="unit">%</span>
@@ -136,7 +149,7 @@ export default function Calculator() {
             </div>
 
             <div className="input-field">
-              <label>当前温度</label>
+              <label>{t('input.temperature')}</label>
               <div className="input-wrapper">
                 <input
                   ref={temperatureInputRef}
@@ -145,7 +158,7 @@ export default function Calculator() {
                   value={temperature}
                   onChange={(e) => handleInputChange(e.target.value, setTemperature)}
                   onKeyDown={(e) => handleKeyDown(e, 'temperature')}
-                  placeholder="20"
+                  placeholder={t('input.placeholder.temperature')}
                   disabled={loading}
                 />
                 <span className="unit">℃</span>
@@ -160,16 +173,16 @@ export default function Calculator() {
               onClick={calculate}
               disabled={loading || !alcohol || !temperature}
             >
-              {loading ? '加载中...' : '开始计算 (Enter)'}
+              {loading ? t('button.loading') : t('button.calculate')}
             </button>
 
             <button
               className="clear-btn"
               onClick={clearAll}
               disabled={loading}
-              title="清空所有数据 (Ctrl+L)"
+              title={t('button.clear')}
             >
-              清空
+              {t('button.clear')}
             </button>
           </div>
 
@@ -178,20 +191,20 @@ export default function Calculator() {
           {result && (
             <div className="results">
               <div className="result-item primary">
-                <span className="result-label">标准浓度 (20℃)</span>
-                <span className="result-value">{result.vol}% vol</span>
+                <span className="result-label">{t('result.standard')}</span>
+                <span className="result-value">{result.vol}{t('result.unit.vol')}</span>
               </div>
               {result.mass !== null && (
                 <div className="result-item secondary">
-                  <span className="result-label">质量分数</span>
-                  <span className="result-value">{result.mass}% m</span>
+                  <span className="result-label">{t('result.mass')}</span>
+                  <span className="result-value">{result.mass}{t('result.unit.mass')}</span>
                 </div>
               )}
             </div>
           )}
 
           <div className="keyboard-hints">
-            <span>快捷键: Enter-计算/跳转 | Tab-切换 | Esc-清空 | Ctrl+A-全选</span>
+            <span>{t('keyboard.hints')}</span>
           </div>
         </div>
       </div>
