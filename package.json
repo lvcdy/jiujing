@@ -37,6 +37,7 @@
   "build": {
     "appId": "com.lvcdy.jiujing.electron",
     "productName": "酒精浓度计算器",
+    "asar": true,
     "files": [
       "dist/**",
       "electron/**",

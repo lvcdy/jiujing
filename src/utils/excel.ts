@@ -128,35 +128,36 @@ export const bilinearInterpolate = (
   rowVal: number,
   colVal: number
 ): string | null => {
-  console.log('输入值:', { rowVal, colVal });
+  console.log('=== 双线性插值计算开始 ===');
+  console.log('输入值: 酒精计读数 =', rowVal, '温度 =', colVal);
 
   if (!isFinite(rowVal) || !isFinite(colVal)) {
-    console.log('输入值无效:', { rowVal, colVal });
+    console.error('输入值无效:', { rowVal, colVal });
     return null;
   }
 
   const excelCache = getExcelCache('jiujing')
   if (!excelCache) {
-    console.log('缓存未找到');
+    console.error('缓存未找到');
     return null;
   }
 
   const { colCoords, rowCoords, data } = excelCache
 
   if (colCoords.length === 0 || rowCoords.length === 0) {
-    console.log('坐标数据为空');
+    console.error('坐标数据为空');
     return null;
   }
 
   // 找到最近的索引
   const cIdx = findNearestIndex(colCoords, colVal)
   const rIdx = findNearestIndex(rowCoords, rowVal)
-  console.log('找到的索引:', { cIdx, rIdx });
+  console.log('找到的索引: 温度索引 =', cIdx, '酒精计读数索引 =', rIdx);
 
   // 确定数组排序方向
   const colIsDesc = colCoords[0] > colCoords[colCoords.length - 1]
   const rowIsDesc = rowCoords[0] > rowCoords[rowCoords.length - 1]
-  console.log('数组排序方向:', { colIsDesc, rowIsDesc });
+  console.log('数组排序方向: 温度 =', colIsDesc ? '降序' : '升序', '酒精计读数 =', rowIsDesc ? '降序' : '升序');
 
   // 确定四个点的索引
   const cLow = colIsDesc
@@ -168,53 +169,54 @@ export const bilinearInterpolate = (
     ? Math.max(0, rIdx - (rowVal > rowCoords[rIdx] ? 1 : 0))
     : Math.max(0, rIdx - (rowVal < rowCoords[rIdx] ? 1 : 0))
   const rHigh = Math.min(rowCoords.length - 1, rLow + 1)
-  console.log('四个点的索引:', { cLow, cHigh, rLow, rHigh });
+  console.log('四个点的索引: cLow =', cLow, 'cHigh =', cHigh, 'rLow =', rLow, 'rHigh =', rHigh);
 
   // 获取四个角的值
   const v11 = data.get(`${rLow},${cLow}`)
   if (v11 === undefined) {
-    console.log('v11 未找到');
+    console.error('v11 未找到:', { rLow, cLow });
     return null;
   }
 
   // 如果正好在网格点上
   if (cLow === cHigh && rLow === rHigh) {
     console.log('正好在网格点上:', { v11 });
+    console.log('=== 双线性插值计算结束 ===');
     return new Big(v11).toString();
   }
 
   const cMin = colCoords[cLow], cMax = colCoords[cHigh]
   const rMin = rowCoords[rLow], rMax = rowCoords[rHigh]
-  console.log('坐标范围:', { cMin, cMax, rMin, rMax });
+  console.log('坐标范围: 温度 =', cMin, '~', cMax, '酒精计读数 =', rMin, '~', rMax);
 
   const cT = cLow === cHigh ? new Big(0) : new Big(colVal).minus(cMin).div(new Big(cMax).minus(cMin))
   const rT = rLow === rHigh ? new Big(0) : new Big(rowVal).minus(rMin).div(new Big(rMax).minus(rMin))
-  console.log('插值参数:', { cT: cT.toString(), rT: rT.toString() });
+  console.log('插值参数: cT =', cT.toString(), 'rT =', rT.toString());
 
   // 单边插值
   if (cLow === cHigh) {
     const v21 = data.get(`${rHigh},${cLow}`)
     if (v21 === undefined) {
-      console.log('v21 未找到');
+      console.error('v21 未找到:', { rHigh, cLow });
       return null;
     }
-    console.log('行插值:', { v11, v21, rT: rT.toString() });
+    console.log('行插值: v11 =', v11, 'v21 =', v21, 'rT =', rT.toString());
     const result = new Big(v11).plus(new Big(v21).minus(v11).times(rT));
-    const resultFixed = result.toFixed(2);
-    console.log('行插值结果:', { raw: result.toString(), fixed: resultFixed });
+    console.log('行插值结果: raw =', result.toString(), 'fixed =', result.toFixed(2));
+    console.log('=== 双线性插值计算结束 ===');
     return result.toString();
   }
 
   if (rLow === rHigh) {
     const v12 = data.get(`${rLow},${cHigh}`)
     if (v12 === undefined) {
-      console.log('v12 未找到');
+      console.error('v12 未找到:', { rLow, cHigh });
       return null;
     }
-    console.log('列插值:', { v11, v12, cT: cT.toString() });
+    console.log('列插值: v11 =', v11, 'v12 =', v12, 'cT =', cT.toString());
     const result = new Big(v11).plus(new Big(v12).minus(v11).times(cT));
-    const resultFixed = result.toFixed(2);
-    console.log('列插值结果:', { raw: result.toString(), fixed: resultFixed });
+    console.log('列插值结果: raw =', result.toString(), 'fixed =', result.toFixed(2));
+    console.log('=== 双线性插值计算结束 ===');
     return result.toString();
   }
 
@@ -224,24 +226,25 @@ export const bilinearInterpolate = (
   const v22 = data.get(`${rHigh},${cHigh}`)
 
   if (v12 === undefined || v21 === undefined || v22 === undefined) {
-    console.log('插值点未找到:', { v12, v21, v22 });
+    console.error('插值点未找到:', { v12, v21, v22 });
     return null;
   }
 
-  console.log('双线性插值点:', { v11, v12, v21, v22 });
+  console.log('双线性插值点: v11 =', v11, 'v12 =', v12, 'v21 =', v21, 'v22 =', v22);
   const top = new Big(v11).times(new Big(1).minus(cT)).plus(new Big(v12).times(cT))
   const bottom = new Big(v21).times(new Big(1).minus(cT)).plus(new Big(v22).times(cT))
   const result = top.times(new Big(1).minus(rT)).plus(bottom.times(rT))
-  const resultFixed = result.toFixed(2)
-  console.log('双线性插值结果:', { raw: result.toString(), fixed: resultFixed });
+  console.log('双线性插值结果: raw =', result.toString(), 'fixed =', result.toFixed(2));
+  console.log('=== 双线性插值计算结束 ===');
   return result.toString();
 }
 
 export const getMassFromVolume = (volPct: string): string | null => {
-  console.log('质量分数计算输入:', { volPct });
+  console.log('=== 质量分数计算开始 ===');
+  console.log('输入值: 体积分数 =', volPct);
 
   if (!volPct || isNaN(Number(volPct))) {
-    console.log('输入值无效:', { volPct });
+    console.error('输入值无效:', { volPct });
     return null;
   }
 
@@ -249,36 +252,37 @@ export const getMassFromVolume = (volPct: string): string | null => {
 
   const excelCache = getExcelCache('wendu')
   if (!excelCache) {
-    console.log('缓存未找到');
+    console.error('缓存未找到');
     return null;
   }
 
   const { volMassData } = excelCache
   if (volMassData.length === 0) {
-    console.log('体积-质量数据为空');
+    console.error('体积-质量数据为空');
     return null;
   }
 
   // 二分查找最近的体积值
   let low = 0, high = volMassData.length - 1
-  console.log('初始查找范围:', { low, high });
+  console.log('初始查找范围: low =', low, 'high =', high);
 
   while (low < high - 1) {
     const mid = (low + high) >> 1
-    console.log('中间索引:', mid, '对应值:', volMassData[mid][0]);
+    console.log('中间索引:', mid, '对应体积值:', volMassData[mid][0]);
 
     if (new Big(volMassData[mid][0]).eq(volBig)) {
       const result = round2(volMassData[mid][1]);
-      console.log('找到精确值:', { volPct, mass: volMassData[mid][1], result });
+      console.log('找到精确值: 体积 =', volMassData[mid][0], '质量 =', volMassData[mid][1], '结果 =', result);
+      console.log('=== 质量分数计算结束 ===');
       return result;
     }
 
     if (new Big(volMassData[mid][0]).lt(volBig)) {
       low = mid;
-      console.log('调整低位:', low);
+      console.log('调整低位: low =', low);
     } else {
       high = mid;
-      console.log('调整高位:', high);
+      console.log('调整高位: high =', high);
     }
   }
 
@@ -287,19 +291,21 @@ export const getMassFromVolume = (volPct: string): string | null => {
   const volHigh = volMassData[high][0]
   const massLow = volMassData[low][1]
   const massHigh = volMassData[high][1]
-  console.log('插值范围:', { volLow, volHigh, massLow, massHigh });
+  console.log('插值范围: 体积 =', volLow, '~', volHigh, '质量 =', massLow, '~', massHigh);
 
   if (low === high) {
     const result = round2(massLow);
     console.log('单点结果:', result);
+    console.log('=== 质量分数计算结束 ===');
     return result;
   }
 
   const t = volBig.minus(volLow).div(new Big(volHigh).minus(volLow))
-  console.log('质量分数插值参数:', { t: t.toString() });
+  console.log('质量分数插值参数: t =', t.toString());
 
   const result = lerp(massLow, massHigh, t);
   console.log('质量分数插值结果:', result);
+  console.log('=== 质量分数计算结束 ===');
   return result;
 }
 
