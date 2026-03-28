@@ -30,6 +30,8 @@
     "cross-env": "^10.1.0",
     "electron": "^41.1.0",
     "electron-builder": "^26.8.1",
+    "ico-endec": "^0.1.6",
+    "sharp": "^0.34.5",
     "typescript": "~6.0.2",
     "vite": "^8.0.3",
     "wait-on": "^9.0.4"
