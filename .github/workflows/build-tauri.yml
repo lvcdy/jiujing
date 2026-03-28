@@ -13,10 +13,35 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   NODE_VERSION: 24
   PNPM_VERSION: 10
+  # sccache 配置
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
 
 jobs:
+  # 先构建前端，让两个架构任务复用
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 1
+
   build:
     name: Tauri (${{ matrix.arch }})
+    needs: build-frontend
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -28,23 +53,47 @@ jobs:
             target: i686-pc-windows-msvc
     steps:
       - uses: actions/checkout@v4
+
+      # 下载前端构建产物
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
+
+      # 只安装依赖，不构建前端
       - run: pnpm install --frozen-lockfile
+
       - run: node scripts/sync-version.js
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      # sccache 加速 Rust 编译
+      - uses: mozilla-actions/sccache-action@v0.0.9
+        with:
+          version: "v0.10.0"
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
           key: ${{ matrix.target }}
+
+      # 构建 Tauri，跳过前端构建
       - run: pnpm exec tauri build --target ${{ matrix.target }}
+        env:
+          TAURI_SKIP_FRONTEND_BUILD: "true"
+
+      # 打包安装程序
       - shell: pwsh
         run: |
           $version = node -p "require('./package.json').version"
@@ -53,8 +102,23 @@ jobs:
           if (Test-Path $bundleDir) {
             Compress-Archive -Path "$bundleDir/*" -DestinationPath $zipName
           }
+
+      # 打包便携版（开箱即用）
+      - shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $releaseDir = "src-tauri/target/${{ matrix.target }}/release"
+          $portableDir = "jiujing-tauri-$version-windows-${{ matrix.arch }}-portable"
+          New-Item -ItemType Directory -Path $portableDir -Force
+          Copy-Item "$releaseDir/jiujing-tauri.exe" "$portableDir/酒精浓度计算器.exe"
+          Copy-Item "$releaseDir/*.dll" "$portableDir/" -ErrorAction SilentlyContinue
+          Compress-Archive -Path "$portableDir" -DestinationPath "$portableDir.zip"
+          Remove-Item -Recurse -Force $portableDir
+
       - uses: actions/upload-artifact@v4
         with:
           name: tauri-${{ matrix.arch }}
-          path: jiujing-tauri-*.zip
+          path: |
+            jiujing-tauri-*.zip
           retention-days: 1
+          if-no-files-found: warn

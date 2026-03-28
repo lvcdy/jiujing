@@ -3,7 +3,7 @@
   "productName": "酒精浓度计算器",
   "version": "1.0.0",
   "build": {
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "",
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
@@ -24,7 +24,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "msi"],
     "icon": [
       "icons/icon.ico"
     ],
