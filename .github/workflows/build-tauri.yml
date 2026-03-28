@@ -1,0 +1,60 @@
+name: Build Tauri App
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NODE_VERSION: 24
+  PNPM_VERSION: 10
+
+jobs:
+  build:
+    name: Tauri (${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+          - arch: x86
+            target: i686-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/sync-version.js
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+      - run: pnpm exec tauri build --target ${{ matrix.target }}
+      - shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $bundleDir = "src-tauri/target/${{ matrix.target }}/release/bundle"
+          $zipName = "jiujing-tauri-$version-windows-${{ matrix.arch }}.zip"
+          if (Test-Path $bundleDir) {
+            Compress-Archive -Path "$bundleDir/*" -DestinationPath $zipName
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tauri-${{ matrix.arch }}
+          path: jiujing-tauri-*.zip
+          retention-days: 1

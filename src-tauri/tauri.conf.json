@@ -1,6 +1,6 @@
 {
   "identifier": "com.lvcdy.jiujing",
-  "productName": "Jiujing",
+  "productName": "酒精浓度计算器",
   "version": "1.0.0",
   "build": {
     "beforeBuildCommand": "pnpm build",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "Jiujing",
+        "title": "酒精浓度计算器",
         "width": 800,
         "height": 600,
         "resizable": true,
