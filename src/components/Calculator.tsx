@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { readExcelFile, bilinearInterpolate, getMassFromVolume, parseExcelCache } from '../utils/excel'
+import Big from 'big.js'
+import { loadExcelData, bilinearInterpolate, getMassFromVolume } from '../utils/excel'
 import jiujingExcel from '../assets/jiujing.xlsx?url'
 import wenduExcel from '../assets/wendu.xlsx?url'
 import './Calculator.css'
@@ -18,10 +19,8 @@ export default function Calculator() {
   const calculateBtnRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    Promise.all([readExcelFile(jiujingExcel), readExcelFile(wenduExcel)])
-      .then(([j, w]) => {
-        if (j) parseExcelCache(j, 'jiujing')
-        if (w) parseExcelCache(w, 'wendu')
+    Promise.all([loadExcelData(jiujingExcel, 'jiujing'), loadExcelData(wenduExcel, 'wendu')])
+      .then(() => {
         setLoading(false)
         // 自动聚焦第一个输入框
         setTimeout(() => alcoholInputRef.current?.focus(), 100)
@@ -39,15 +38,16 @@ export default function Calculator() {
     }
 
     setError('')
-    const vol = bilinearInterpolate(Number(temperature), Number(alcohol))
+    const volRaw = bilinearInterpolate(Number(temperature), Number(alcohol))
 
-    if (!vol) {
+    if (!volRaw) {
       setError(t('error.failed'))
       return
     }
 
-    const mass = getMassFromVolume(Number(vol))
-    setResult({ vol, mass })
+    const volFixed = new Big(volRaw).toFixed(2)
+    const mass = getMassFromVolume(volRaw)
+    setResult({ vol: volFixed, mass })
   }, [alcohol, temperature, t])
 
   // 处理键盘事件
@@ -107,12 +107,6 @@ export default function Calculator() {
     alcoholInputRef.current?.focus()
   }
 
-  const toggleLanguage = () => {
-    const newLanguage = i18n.language === 'zh-CN' ? 'en-US' : 'zh-CN'
-    i18n.changeLanguage(newLanguage)
-    localStorage.setItem('language', newLanguage)
-  }
-
   return (
     <div className="calculator">
       <div className="glass-card">
@@ -122,9 +116,32 @@ export default function Calculator() {
               <span className="icon">🧪</span>
               <h1>{t('app.title')}</h1>
             </div>
-            <button className="language-btn" onClick={toggleLanguage}>
-              {i18n.language === 'zh-CN' ? 'EN' : '中文'}
-            </button>
+            <div className="language-dropdown">
+              <button className="language-btn">
+                {i18n.language === 'zh-CN' ? '中文' : 'English'}
+                <span className="dropdown-arrow">▼</span>
+              </button>
+              <div className="dropdown-menu">
+                <button
+                  className={`dropdown-item ${i18n.language === 'zh-CN' ? 'active' : ''}`}
+                  onClick={() => {
+                    i18n.changeLanguage('zh-CN');
+                    localStorage.setItem('language', 'zh-CN');
+                  }}
+                >
+                  中文
+                </button>
+                <button
+                  className={`dropdown-item ${i18n.language === 'en-US' ? 'active' : ''}`}
+                  onClick={() => {
+                    i18n.changeLanguage('en-US');
+                    localStorage.setItem('language', 'en-US');
+                  }}
+                >
+                  English
+                </button>
+              </div>
+            </div>
           </div>
           <p className="subtitle">{t('app.subtitle')}</p>
         </header>
