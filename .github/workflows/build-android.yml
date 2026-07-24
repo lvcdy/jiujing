@@ -1,0 +1,132 @@
+name: Build Android App
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NODE_VERSION: 24
+  PNPM_VERSION: 10
+  JAVA_VERSION: 17
+  # sccache 配置
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
+jobs:
+  # 先构建前端，让多个架构任务复用
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 1
+
+  build-android:
+    name: Tauri Android (${{ matrix.arch }})
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-linux-android
+          - arch: armv7
+            target: armv7-linux-androideabi
+          - arch: x86_64
+            target: x86_64-linux-android
+          - arch: x86
+            target: i686-linux-android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 下载前端构建产物
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+
+      # 设置 Java
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      # 设置 Android SDK & NDK
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager "ndk;27.0.12077973"
+
+      # 设置 Node.js + pnpm
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: node scripts/sync-version.js
+
+      # 设置 Rust + Android targets
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # sccache 加速 Rust 编译
+      - uses: mozilla-actions/sccache-action@v0.0.9
+        with:
+          version: "v0.10.0"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: android-${{ matrix.target }}
+
+      # 设置环境变量
+      - name: Set Android env
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+
+      # 构建 Android APK
+      - name: Build Android
+        run: pnpm exec tauri android build --target ${{ matrix.target }}
+
+      # 上传构建产物
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ matrix.arch }}
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+          retention-days: 7
+          if-no-files-found: warn
