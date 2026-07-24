@@ -630,6 +630,15 @@
     font-size: 32px;
   }
 
+  .tab-nav {
+    padding: 0 16px;
+  }
+
+  .tab-btn {
+    padding: 12px 6px;
+    font-size: 12px;
+  }
+
   .card-body {
     padding: 20px 20px 24px;
     border-radius: 0 0 20px 20px;
@@ -676,6 +685,24 @@
   .loading-overlay {
     border-radius: 20px;
   }
+
+  .chart-container {
+    height: 220px;
+    padding: 8px;
+    margin: 12px 0;
+  }
+
+  .chart-placeholder {
+    height: 160px;
+  }
+
+  .uncertainty-section {
+    padding: 12px;
+  }
+
+  .uncertainty-section .result-value {
+    font-size: 16px;
+  }
 }
 
 @media (max-width: 360px) {
@@ -699,9 +726,170 @@
 /* 键盘导航焦点 */
 .calculate-btn:focus-visible,
 .clear-btn:focus-visible,
-.language-btn:focus-visible {
+.language-btn:focus-visible,
+.tab-btn:focus-visible,
+.temp-unit-btn:focus-visible {
   outline: 2px solid rgba(102, 126, 234, 0.6);
   outline-offset: 2px;
+}
+
+/* 头部控制区 */
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 温度单位切换 */
+.temp-unit-btn {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+  font-family: 'SF Mono', 'Monaco', monospace;
+}
+
+.temp-unit-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.temp-unit-btn:active {
+  transform: scale(0.96);
+}
+
+/* Tab 导航 */
+.tab-nav {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0 32px;
+  gap: 2px;
+  overflow-x: auto;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 14px 8px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.tab-btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 1px;
+  transition: all 0.25s ease;
+  transform: translateX(-50%);
+}
+
+.tab-btn:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.tab-btn.active {
+  color: white;
+}
+
+.tab-btn.active::after {
+  width: 60%;
+}
+
+/* 单列输入网格 */
+.input-grid.single {
+  grid-template-columns: 1fr;
+}
+
+/* 分隔线文本 */
+.divider-text {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 11px;
+  margin: 8px 0 16px;
+  letter-spacing: 2px;
+}
+
+/* 不确定度区域 */
+.uncertainty-section {
+  margin-top: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+}
+
+.uncertainty-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.uncertainty-hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.25);
+  margin-top: 8px;
+  text-align: center;
+}
+
+.uncertainty-section .result-item {
+  padding: 10px 12px;
+  margin-bottom: 4px;
+}
+
+.uncertainty-section .result-item:last-of-type {
+  margin-bottom: 0;
+}
+
+.uncertainty-section .result-value {
+  font-size: 18px;
+}
+
+/* 图表容器 */
+.chart-container {
+  height: 280px;
+  margin: 16px 0;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  animation: fadeIn 0.4s ease;
+}
+
+.chart-placeholder {
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  margin: 16px 0;
 }
 
 .dropdown-item:focus-visible {

@@ -4,17 +4,13 @@ import Big from 'big.js'
 // 设置big.js的舍入模式为传统四舍五入
 Big.RM = 1 // roundHalfUp
 
-export interface Workbook {
-  Sheets: Record<string, XLSX.WorkSheet>
-  SheetNames: string[]
-}
-
 // 缓存结构
 interface ExcelCache {
   colCoords: number[]
   rowCoords: number[]
   data: Map<string, number>
   volMassData: [number, number][]
+  volDensityData: [number, number][]  // [体积分数, 相对密度]
 }
 
 const cache = new Map<string, ExcelCache>()
@@ -72,18 +68,23 @@ export const loadExcelData = async (url: string, key: string): Promise<ExcelCach
       }
     }
 
-    // 读取体积-质量数据
+    // 读取体积-质量-密度数据
     const volMassData: [number, number][] = []
+    const volDensityData: [number, number][] = []
     for (let r = 1; ; r++) {
       const vol = ws[XLSX.utils.encode_cell({ r, c: 1 })]?.v
+      const density = ws[XLSX.utils.encode_cell({ r, c: 2 })]?.v
       const mass = ws[XLSX.utils.encode_cell({ r, c: 3 })]?.v
       if (vol === undefined) break
       if (vol !== null && mass !== null) {
         volMassData.push([Number(vol), Number(mass)])
       }
+      if (vol !== null && density !== null) {
+        volDensityData.push([Number(vol), Number(density)])
+      }
     }
 
-    const result = { colCoords, rowCoords, data, volMassData }
+    const result = { colCoords, rowCoords, data, volMassData, volDensityData }
     cache.set(key, result)
     return result
   } catch (error) {
@@ -93,7 +94,7 @@ export const loadExcelData = async (url: string, key: string): Promise<ExcelCach
 }
 
 // 获取缓存数据
-export const getExcelCache = (key: string): ExcelCache | null => {
+const getExcelCache = (key: string): ExcelCache | null => {
   return cache.get(key) || null
 }
 
@@ -128,48 +129,23 @@ export const bilinearInterpolate = (
   rowVal: number,
   colVal: number
 ): string | null => {
-  console.log('\n' + '='.repeat(50))
-  console.log('📊 双线性插值计算开始')
-  console.log('='.repeat(50))
-  console.log('📥 输入参数:')
-  console.log('   - 温度:', rowVal, '℃')
-  console.log('   - 酒精计读数:', colVal)
-
-  if (!isFinite(rowVal) || !isFinite(colVal)) {
-    console.error('❌ 输入值无效')
-    return null;
-  }
+  if (!isFinite(rowVal) || !isFinite(colVal)) return null;
 
   const excelCache = getExcelCache('jiujing')
-  if (!excelCache) {
-    console.error('❌ Excel 缓存未找到')
-    return null;
-  }
+  if (!excelCache) return null;
 
+  // colCoords = 酒精计读数 (ascending [0, 0.5, 1, ..., 100])
+  // rowCoords = 温度 (descending [40, 39.5, ..., 0])
+  // data.get(r, c) where r=tempIdx, c=alcIdx
   const { colCoords, rowCoords, data } = excelCache
+  if (colCoords.length === 0 || rowCoords.length === 0) return null;
 
-  if (colCoords.length === 0 || rowCoords.length === 0) {
-    console.error('❌ 坐标数据为空')
-    return null;
-  }
+  const cIdx = findNearestIndex(colCoords, colVal)  // 酒精计读数索引
+  const rIdx = findNearestIndex(rowCoords, rowVal)   // 温度索引
 
-  console.log('\n📋 数据表信息:')
-  console.log('   - 温度范围:', colCoords[0], '~', colCoords[colCoords.length - 1], '℃')
-  console.log('   - 酒精计读数范围:', rowCoords[0], '~', rowCoords[rowCoords.length - 1])
-
-  // 找到最近的索引
-  const cIdx = findNearestIndex(colCoords, colVal)
-  const rIdx = findNearestIndex(rowCoords, rowVal)
-
-  // 确定数组排序方向
   const colIsDesc = colCoords[0] > colCoords[colCoords.length - 1]
   const rowIsDesc = rowCoords[0] > rowCoords[rowCoords.length - 1]
 
-  console.log('\n🔍 查找最近索引:')
-  console.log('   - 温度索引:', cIdx, '(值:', colCoords[cIdx], ')')
-  console.log('   - 酒精计读数索引:', rIdx, '(值:', rowCoords[rIdx], ')')
-
-  // 确定四个点的索引
   const cLow = colIsDesc
     ? Math.max(0, cIdx - (colVal > colCoords[cIdx] ? 1 : 0))
     : Math.max(0, cIdx - (colVal < colCoords[cIdx] ? 1 : 0))
@@ -180,180 +156,216 @@ export const bilinearInterpolate = (
     : Math.max(0, rIdx - (rowVal < rowCoords[rIdx] ? 1 : 0))
   const rHigh = Math.min(rowCoords.length - 1, rLow + 1)
 
-  console.log('\n📐 插值网格点:')
-  console.log('   - 温度索引范围: [', cLow, ',', cHigh, ']')
-  console.log('   - 酒精计读数索引范围: [', rLow, ',', rHigh, ']')
-
-  // 获取四个角的值
   const v11 = data.get(`${rLow},${cLow}`)
-  if (v11 === undefined) {
-    console.error('❌ 无法获取网格点数据')
-    return null;
-  }
+  if (v11 === undefined) return null;
 
-  // 如果正好在网格点上
-  if (cLow === cHigh && rLow === rHigh) {
-    console.log('\n✅ 正好在网格点上，直接返回值:', v11)
-    console.log('='.repeat(50) + '\n')
-    return new Big(v11).toFixed(2);
-  }
+  if (cLow === cHigh && rLow === rHigh) return new Big(v11).toFixed(2);
 
   const cMin = colCoords[cLow], cMax = colCoords[cHigh]
   const rMin = rowCoords[rLow], rMax = rowCoords[rHigh]
 
-  console.log('\n📊 四个网格点的值:')
-  console.log('   - v11 (温度=' + cMin + ', 酒精=' + rMin + '):', v11)
-
   const cT = cLow === cHigh ? new Big(0) : new Big(colVal).minus(cMin).div(new Big(cMax).minus(cMin))
   const rT = rLow === rHigh ? new Big(0) : new Big(rowVal).minus(rMin).div(new Big(rMax).minus(rMin))
 
-  console.log('\n🔢 插值参数:')
-  console.log('   - 温度插值参数 cT:', cT.toFixed(6))
-  console.log('   - 酒精插值参数 rT:', rT.toFixed(6))
-
-  // 单边插值
   if (cLow === cHigh) {
     const v21 = data.get(`${rHigh},${cLow}`)
-    if (v21 === undefined) {
-      console.error('❌ 无法获取网格点数据')
-      return null;
-    }
-    console.log('   - v21 (温度=' + cMin + ', 酒精=' + rMax + '):', v21)
-    console.log('\n📝 行插值计算:')
-    console.log('   公式: result = v11 + (v21 - v11) × rT')
-    console.log('   代入: result = ' + v11 + ' + (' + v21 + ' - ' + v11 + ') × ' + rT.toFixed(6))
-    const result = new Big(v11).plus(new Big(v21).minus(v11).times(rT));
-    console.log('   结果:', result.toFixed(2))
-    console.log('='.repeat(50) + '\n')
-    return result.toFixed(2);
+    if (v21 === undefined) return null;
+    return new Big(v11).plus(new Big(v21).minus(v11).times(rT)).toFixed(2);
   }
 
   if (rLow === rHigh) {
     const v12 = data.get(`${rLow},${cHigh}`)
-    if (v12 === undefined) {
-      console.error('❌ 无法获取网格点数据')
-      return null;
-    }
-    console.log('   - v12 (温度=' + cMax + ', 酒精=' + rMin + '):', v12)
-    console.log('\n📝 列插值计算:')
-    console.log('   公式: result = v11 + (v12 - v11) × cT')
-    console.log('   代入: result = ' + v11 + ' + (' + v12 + ' - ' + v11 + ') × ' + cT.toFixed(6))
-    const result = new Big(v11).plus(new Big(v12).minus(v11).times(cT));
-    console.log('   结果:', result.toFixed(2))
-    console.log('='.repeat(50) + '\n')
-    return result.toFixed(2);
+    if (v12 === undefined) return null;
+    return new Big(v11).plus(new Big(v12).minus(v11).times(cT)).toFixed(2);
   }
 
-  // 双线性插值
   const v12 = data.get(`${rLow},${cHigh}`)
   const v21 = data.get(`${rHigh},${cLow}`)
   const v22 = data.get(`${rHigh},${cHigh}`)
 
-  if (v12 === undefined || v21 === undefined || v22 === undefined) {
-    console.error('❌ 无法获取网格点数据')
-    return null;
-  }
-
-  console.log('   - v12 (温度=' + cMax + ', 酒精=' + rMin + '):', v12)
-  console.log('   - v21 (温度=' + cMin + ', 酒精=' + rMax + '):', v21)
-  console.log('   - v22 (温度=' + cMax + ', 酒精=' + rMax + '):', v22)
-
-  console.log('\n📝 双线性插值计算:')
-  console.log('   公式: result = v11×(1-cT)×(1-rT) + v12×cT×(1-rT) + v21×(1-cT)×rT + v22×cT×rT')
+  if (v12 === undefined || v21 === undefined || v22 === undefined) return null;
 
   const top = new Big(v11).times(new Big(1).minus(cT)).plus(new Big(v12).times(cT))
   const bottom = new Big(v21).times(new Big(1).minus(cT)).plus(new Big(v22).times(cT))
   const result = top.times(new Big(1).minus(rT)).plus(bottom.times(rT))
 
-  console.log('   中间计算:')
-  console.log('     - top = v11×(1-cT) + v12×cT = ' + v11 + '×' + new Big(1).minus(cT).toFixed(6) + ' + ' + v12 + '×' + cT.toFixed(6) + ' = ' + top.toFixed(4))
-  console.log('     - bottom = v21×(1-cT) + v22×cT = ' + v21 + '×' + new Big(1).minus(cT).toFixed(6) + ' + ' + v22 + '×' + cT.toFixed(6) + ' = ' + bottom.toFixed(4))
-  console.log('     - result = top×(1-rT) + bottom×rT = ' + top.toFixed(4) + '×' + new Big(1).minus(rT).toFixed(6) + ' + ' + bottom.toFixed(4) + '×' + rT.toFixed(6))
-  console.log('   最终结果:', result.toFixed(2))
-  console.log('='.repeat(50) + '\n')
   return result.toFixed(2);
 }
 
 export const getMassFromVolume = (volPct: string): string | null => {
-  console.log('\n' + '='.repeat(50))
-  console.log('⚖️ 体积分数转质量分数')
-  console.log('='.repeat(50))
-  console.log('📥 输入参数:')
-  console.log('   - 体积分数:', volPct, '% vol')
-
-  if (!volPct || isNaN(Number(volPct))) {
-    console.error('❌ 输入值无效')
-    return null;
-  }
+  if (!volPct || isNaN(Number(volPct))) return null;
 
   const volBig = new Big(volPct);
-
   const excelCache = getExcelCache('wendu')
-  if (!excelCache) {
-    console.error('❌ Excel 缓存未找到')
-    return null;
-  }
+  if (!excelCache) return null;
 
   const { volMassData } = excelCache
-  if (volMassData.length === 0) {
-    console.error('❌ 体积-质量数据为空')
-    return null;
-  }
-
-  console.log('\n📋 数据表信息:')
-  console.log('   - 体积分数范围:', volMassData[0][0], '~', volMassData[volMassData.length - 1][0], '% vol')
+  if (volMassData.length === 0) return null;
 
   // 二分查找最近的体积值
   let low = 0, high = volMassData.length - 1
+  while (low < high - 1) {
+    const mid = (low + high) >> 1
+    if (new Big(volMassData[mid][0]).eq(volBig)) return round2(volMassData[mid][1]);
+    if (new Big(volMassData[mid][0]).lt(volBig)) low = mid;
+    else high = mid;
+  }
+
+  if (low === high) return round2(volMassData[low][1]);
+
+  // 线性插值
+  const t = volBig.minus(volMassData[low][0]).div(new Big(volMassData[high][0]).minus(volMassData[low][0]))
+  return lerp(volMassData[low][1], volMassData[high][1], t);
+}
+
+// 体积分数 → 相对密度
+export const getDensityFromVolume = (volPct: string): string | null => {
+  if (!volPct || isNaN(Number(volPct))) return null
+  const volBig = new Big(volPct)
+  const cache = getExcelCache('wendu')
+  if (!cache || cache.volDensityData.length === 0) return null
+
+  const data = cache.volDensityData
+  let low = 0, high = data.length - 1
 
   while (low < high - 1) {
     const mid = (low + high) >> 1
-
-    if (new Big(volMassData[mid][0]).eq(volBig)) {
-      console.log('\n✅ 找到精确匹配值')
-      console.log('   - 体积分数:', volMassData[mid][0], '% vol')
-      console.log('   - 质量分数:', volMassData[mid][1], '% m')
-      console.log('='.repeat(50) + '\n')
-      return round2(volMassData[mid][1]);
-    }
-
-    if (new Big(volMassData[mid][0]).lt(volBig)) {
-      low = mid;
-    } else {
-      high = mid;
-    }
+    if (new Big(data[mid][0]).eq(volBig)) return round2(data[mid][1])
+    if (new Big(data[mid][0]).lt(volBig)) low = mid; else high = mid
   }
 
-  // 线性插值
-  const volLow = volMassData[low][0]
-  const volHigh = volMassData[high][0]
-  const massLow = volMassData[low][1]
-  const massHigh = volMassData[high][1]
-
-  console.log('\n🔍 查找插值区间:')
-  console.log('   - 体积分数范围: [', volLow, ',', volHigh, ']')
-  console.log('   - 对应质量分数: [', massLow, ',', massHigh, ']')
-
-  if (low === high) {
-    console.log('\n✅ 单点匹配')
-    console.log('   - 质量分数:', massLow, '% m')
-    console.log('='.repeat(50) + '\n')
-    return round2(massLow);
-  }
-
-  const t = volBig.minus(volLow).div(new Big(volHigh).minus(volLow))
-
-  console.log('\n📝 线性插值计算:')
-  console.log('   公式: mass = massLow + (massHigh - massLow) × t')
-  console.log('   其中: t = (volPct - volLow) / (volHigh - volLow)')
-  console.log('   代入: t = (' + volPct + ' - ' + volLow + ') / (' + volHigh + ' - ' + volLow + ') = ' + t.toFixed(6))
-  console.log('   代入: mass = ' + massLow + ' + (' + massHigh + ' - ' + massLow + ') × ' + t.toFixed(6))
-
-  const result = lerp(massLow, massHigh, t);
-  console.log('   结果:', result, '% m')
-  console.log('='.repeat(50) + '\n')
-  return result;
+  if (low === high) return round2(data[low][1])
+  const t = volBig.minus(data[low][0]).div(new Big(data[high][0]).minus(data[low][0]))
+  return lerp(data[low][1], data[high][1], t)
 }
 
-// 清除缓存（用于重新加载）
-export const clearCache = () => cache.clear()
+// 相对密度 → 体积分数
+export const getVolumeFromDensity = (density: number): string | null => {
+  if (!isFinite(density)) return null
+  const cache = getExcelCache('wendu')
+  if (!cache || cache.volDensityData.length === 0) return null
+
+  const data = cache.volDensityData
+  const densityBig = new Big(density)
+  let low = 0, high = data.length - 1
+
+  // 密度是降序的（浓度越高密度越低）
+  while (low < high - 1) {
+    const mid = (low + high) >> 1
+    if (new Big(data[mid][1]).eq(densityBig)) return round2(data[mid][0])
+    if (new Big(data[mid][1]).gt(densityBig)) low = mid; else high = mid
+  }
+
+  if (low === high) return round2(data[low][0])
+  const t = densityBig.minus(data[low][1]).div(new Big(data[high][1]).minus(data[low][1]))
+  return lerp(data[low][0], data[high][0], t)
+}
+
+// 反向计算：已知标准浓度(20℃)和当前温度 → 推算酒精计读数
+// 数据结构: colCoords=[酒精读数...], rowCoords=[温度...](降序), data.get(`${tempIdx},${alcIdx}`)
+export const reverseInterpolate = (
+  targetVol: number,
+  temperature: number
+): string | null => {
+  const cache = getExcelCache('jiujing')
+  if (!cache) return null
+
+  // colCoords = 酒精计读数 (ascending [0, 0.5, 1, ..., 100])
+  // rowCoords = 温度 (descending [40, 39.5, ..., 0])
+  // data.get(r, c) = 标准浓度, where r=tempIdx, c=alcIdx
+  const { colCoords, rowCoords, data } = cache
+  if (colCoords.length === 0 || rowCoords.length === 0) return null
+
+  // 找到温度在 rowCoords 中的索引
+  const rIdx = findNearestIndex(rowCoords, temperature)
+  const rowIsDesc = rowCoords[0] > rowCoords[rowCoords.length - 1]
+  const rLow = rowIsDesc
+    ? Math.max(0, rIdx - (temperature > rowCoords[rIdx] ? 1 : 0))
+    : Math.max(0, rIdx - (temperature < rowCoords[rIdx] ? 1 : 0))
+  const rHigh = Math.min(rowCoords.length - 1, rLow + 1)
+
+  // 在指定温度行中，遍历酒精读数列，查找哪个酒精读数对应目标标准浓度
+  // 只使用整数酒精读数列（半步长列的数据格式在不同范围不一致：高范围是delta，低范围是完整值）
+  // 整数列始终存储完整标准浓度值
+  const findInRow = (tempRowIdx: number): number | null => {
+    const values: { alcohol: number; vol: number }[] = []
+    for (let c = 0; c < colCoords.length; c++) {
+      // 跳过半步长列（x.5），只使用整数酒精读数列
+      if (colCoords[c] % 1 !== 0) continue
+      const v = data.get(`${tempRowIdx},${c}`)
+      if (v !== undefined) values.push({ alcohol: colCoords[c], vol: v })
+    }
+    if (values.length === 0) return null
+
+    // 查找目标标准浓度值所在的区间并线性插值
+    // values 按酒精读数升序排列，标准浓度也应单调递增
+    for (let i = 0; i < values.length - 1; i++) {
+      const curr = values[i]
+      const next = values[i + 1]
+      // 目标值在 curr.vol 和 next.vol 之间
+      if (targetVol >= curr.vol && targetVol <= next.vol) {
+        const range = next.vol - curr.vol
+        if (range === 0) return curr.alcohol
+        const t = (targetVol - curr.vol) / range
+        return curr.alcohol + (next.alcohol - curr.alcohol) * t
+      }
+    }
+
+    // 如果目标值超出范围，返回最接近的端点
+    if (targetVol <= values[0].vol) return values[0].alcohol
+    if (targetVol >= values[values.length - 1].vol) return values[values.length - 1].alcohol
+
+    return null
+  }
+
+  const result1 = findInRow(rLow)
+  if (rLow === rHigh) return result1 !== null ? new Big(result1).toFixed(2) : null
+
+  const result2 = findInRow(rHigh)
+  if (result1 === null || result2 === null) {
+    return result1 !== null ? new Big(result1).toFixed(2) : (result2 !== null ? new Big(result2).toFixed(2) : null)
+  }
+
+  // 在两个温度行之间插值
+  const tVal = new Big(temperature).minus(rowCoords[rLow]).div(new Big(rowCoords[rHigh]).minus(rowCoords[rLow]))
+  return new Big(result1).plus(new Big(result2).minus(result1).times(tVal)).toFixed(2)
+}
+
+// 不确定度估算（基于测量仪器精度的误差传播）
+export const estimateUncertainty = (
+  alcohol: number,
+  temperature: number,
+  deltaAlcohol: number = 0.1,
+  deltaTemp: number = 0.1
+): { vol: string; mass: string | null } | null => {
+  const base = bilinearInterpolate(temperature, alcohol)
+  if (!base) return null
+
+  // 偏导数（有限差分法）
+  const volUp = bilinearInterpolate(temperature, alcohol + deltaAlcohol)
+  const volDown = bilinearInterpolate(temperature, alcohol - deltaAlcohol)
+  const tempUp = bilinearInterpolate(temperature + deltaTemp, alcohol)
+  const tempDown = bilinearInterpolate(temperature - deltaTemp, alcohol)
+
+  if (!volUp || !volDown || !tempUp || !tempDown) return null
+
+  const dVol_dAlcohol = new Big(volUp).minus(volDown).div(2 * deltaAlcohol)
+  const dVol_dTemp = new Big(tempUp).minus(tempDown).div(2 * deltaTemp)
+
+  const uncertaintyVol = dVol_dAlcohol.times(deltaAlcohol).pow(2)
+    .plus(dVol_dTemp.times(deltaTemp).pow(2))
+    .sqrt()
+
+  const volUncStr = uncertaintyVol.toFixed(2)
+
+  // 质量分数不确定度（通过体积分数传播）
+  const baseMass = getMassFromVolume(base)
+  if (!baseMass) return { vol: volUncStr, mass: null }
+
+  const massUp = getMassFromVolume(new Big(base).plus(uncertaintyVol).toFixed(2))
+  const massDown = getMassFromVolume(new Big(base).minus(uncertaintyVol).toFixed(2))
+  if (!massUp || !massDown) return { vol: volUncStr, mass: null }
+
+  const massUnc = new Big(massUp).minus(massDown).abs().div(2).toFixed(2)
+  return { vol: volUncStr, mass: massUnc }
+}
