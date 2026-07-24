@@ -70,6 +70,18 @@ export default {
   keyboard: {
     hints: 'Enter Calculate · Tab Switch · Esc Clear · Ctrl+A Select'
   },
+  process: {
+    title: 'Calculation Process',
+    inputParams: 'Input Parameters',
+    tempConvert: 'Temperature Unit Conversion',
+    bilinearInterpolate: 'Bilinear Interpolation Lookup',
+    lookupTable: 'Lookup',
+    massLookup: 'Mass Fraction Lookup',
+    densityLookup: 'Relative Density Lookup',
+    uncertainty: 'Uncertainty Estimation',
+    reverseInterpolate: 'Reverse Interpolation Lookup',
+    searchInTable: 'Search in alcohol-temperature-standard concentration table'
+  },
   language: {
     zh: '中文',
     en: 'English'

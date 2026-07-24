@@ -5,9 +5,9 @@
     loadExcelData, bilinearInterpolate, getMassFromVolume,
     getDensityFromVolume, getVolumeFromDensity,
     reverseInterpolate, estimateUncertainty,
-  } from '../utils/excel'
-  import jiujingExcel from '../assets/jiujing.xlsx?url'
-  import wenduExcel from '../assets/wendu.xlsx?url'
+  } from '../utils/data'
+  import jiujingJson from '../assets/jiujing.json?url'
+  import wenduJson from '../assets/wendu.json?url'
   import i18n from '../i18n'
   import './Calculator.css'
 
@@ -36,11 +36,15 @@
   let forwardDensity = $state('')
   let forwardUncVol = $state('')
   let forwardUncMass = $state('')
+  let forwardProcess = $state<Array<{step: number, label: string, detail: string, formula?: string}>>([])
+  let forwardProcessOpen = $state(false)
 
   // 反向计算
   let targetVol = $state('')
   let reverseTemp = $state('')
   let reverseResult = $state('')
+  let reverseProcess = $state<Array<{step: number, label: string, detail: string, formula?: string}>>([])
+  let reverseProcessOpen = $state(false)
 
   // 密度互查
   let densityInput = $state('')
@@ -85,7 +89,7 @@
 
   // 加载数据
   onMount(() => {
-    Promise.all([loadExcelData(jiujingExcel, 'jiujing'), loadExcelData(wenduExcel, 'wendu')])
+    Promise.all([loadExcelData(jiujingJson, 'jiujing'), loadExcelData(wenduJson, 'wendu')])
       .then(() => {
         loading = false
         setTimeout(() => alcoholInputEl?.focus(), 100)
@@ -180,23 +184,115 @@
   function calculate() {
     if (!alcohol || !temperature) { error = t('error.required'); return }
     error = ''
+    const steps: Array<{step: number, label: string, detail: string, formula?: string}> = []
+    let stepNum = 1
+
+    // Step 1: 输入参数
     const tempC = toCelsius(temperature)
+    steps.push({
+      step: stepNum++,
+      label: t('process.inputParams'),
+      detail: `${t('input.alcohol')}: ${alcohol}% | ${t('input.temperature')}: ${temperature}${tempUnit}`,
+      formula: `A = ${alcohol}%, T = ${temperature}${tempUnit}`
+    })
+
+    // Step 2: 温度转换（如果使用°F）
+    if (tempUnit === '°F') {
+      steps.push({
+        step: stepNum++,
+        label: t('process.tempConvert'),
+        detail: `${temperature}°F → ${tempC.toFixed(2)}℃`,
+        formula: `T_℃ = (${temperature} - 32) × 5/9 = ${tempC.toFixed(2)}℃`
+      })
+    }
+
+    // Step 3: 双线性插值
     const volRaw = bilinearInterpolate(tempC, Number(alcohol))
     if (!volRaw) { error = t('error.failed'); return }
+    steps.push({
+      step: stepNum++,
+      label: t('process.bilinearInterpolate'),
+      detail: `${t('process.lookupTable')} jiujing → ${t('result.standard')}: ${Number(volRaw).toFixed(2)}% vol`,
+      formula: `V(20℃) = bilinear(T=${tempC.toFixed(1)}℃, A=${alcohol}%) = ${Number(volRaw).toFixed(2)}`
+    })
+
     forwardVol = Number(volRaw).toFixed(2)
+
+    // Step 4: 查找质量分数
     forwardMass = getMassFromVolume(volRaw) ?? ''
+    if (forwardMass) {
+      steps.push({
+        step: stepNum++,
+        label: t('process.massLookup'),
+        detail: `${forwardVol}% vol → ${forwardMass}% m`,
+        formula: `m = lookup(vol=${forwardVol}) = ${forwardMass}`
+      })
+    }
+
+    // Step 5: 查找相对密度
     forwardDensity = getDensityFromVolume(forwardVol) ?? ''
+    if (forwardDensity) {
+      steps.push({
+        step: stepNum++,
+        label: t('process.densityLookup'),
+        detail: `${forwardVol}% vol → ${forwardDensity} g/cm³`,
+        formula: `ρ = lookup(vol=${forwardVol}) = ${forwardDensity}`
+      })
+    }
+
+    // Step 6: 不确定度估算
     const unc = estimateUncertainty(Number(alcohol), tempC)
     forwardUncVol = unc?.vol ?? ''
     forwardUncMass = unc?.mass ?? ''
+    if (unc) {
+      steps.push({
+        step: stepNum++,
+        label: t('process.uncertainty'),
+        detail: `±${unc.vol}% vol${unc.mass ? ` | ±${unc.mass}% m` : ''}`,
+        formula: `U = √((∂V/∂A · δA)² + (∂V/∂T · δT)²)`
+      })
+    }
+
+    forwardProcess = steps
   }
 
   function doReverse() {
     if (!targetVol || !reverseTemp) { error = t('error.required'); return }
     error = ''
-    const r = reverseInterpolate(Number(targetVol), toCelsius(reverseTemp))
+    const steps: Array<{step: number, label: string, detail: string, formula?: string}> = []
+    let stepNum = 1
+
+    // Step 1: 输入参数
+    const tempC = toCelsius(reverseTemp)
+    steps.push({
+      step: stepNum++,
+      label: t('process.inputParams'),
+      detail: `${t('input.targetVol')}: ${targetVol}% vol | ${t('input.temperature')}: ${reverseTemp}${tempUnit}`,
+      formula: `V_target = ${targetVol}%, T = ${reverseTemp}${tempUnit}`
+    })
+
+    // Step 2: 温度转换（如果使用°F）
+    if (tempUnit === '°F') {
+      steps.push({
+        step: stepNum++,
+        label: t('process.tempConvert'),
+        detail: `${reverseTemp}°F → ${tempC.toFixed(2)}℃`,
+        formula: `T_℃ = (${reverseTemp} - 32) × 5/9 = ${tempC.toFixed(2)}℃`
+      })
+    }
+
+    // Step 3: 反向插值
+    const r = reverseInterpolate(Number(targetVol), tempC)
     if (r === null) { error = t('error.failed'); return }
+    steps.push({
+      step: stepNum++,
+      label: t('process.reverseInterpolate'),
+      detail: `${t('process.searchInTable')} → ${t('result.alcoholReading')}: ${r}%`,
+      formula: `A = reverse_lookup(V=${targetVol}%, T=${tempC.toFixed(1)}℃) = ${r}`
+    })
+
     reverseResult = r
+    reverseProcess = steps
   }
 
   function doDensityLookup() {
@@ -220,8 +316,8 @@
 
   function clearAll() {
     alcohol = ''; temperature = ''; forwardVol = ''; forwardMass = ''; forwardDensity = ''
-    forwardUncVol = ''; forwardUncMass = ''
-    targetVol = ''; reverseTemp = ''; reverseResult = ''
+    forwardUncVol = ''; forwardUncMass = ''; forwardProcess = []; forwardProcessOpen = false
+    targetVol = ''; reverseTemp = ''; reverseResult = ''; reverseProcess = []; reverseProcessOpen = false
     densityInput = ''; volInput = ''; densityVol = ''; densityMass = ''; densityDensity = ''
     chartAlcohol = ''; error = ''
   }
@@ -387,6 +483,30 @@
             {/if}
           </div>
         {/if}
+        {#if forwardProcess.length > 0}
+          <div class="process-section">
+            <button class="process-toggle" onclick={() => forwardProcessOpen = !forwardProcessOpen}>
+              <span class="process-toggle-icon" class:open={forwardProcessOpen}>▶</span>
+              <span>{t('process.title')}</span>
+            </button>
+            {#if forwardProcessOpen}
+              <div class="process-content">
+                {#each forwardProcess as item}
+                  <div class="process-step">
+                    <div class="step-number">{item.step}</div>
+                    <div class="step-body">
+                      <div class="step-label">{item.label}</div>
+                      <div class="step-detail">{item.detail}</div>
+                      {#if item.formula}
+                        <div class="step-formula">{item.formula}</div>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
         <div class="keyboard-hints">{t('keyboard.hints')}</div>
       {/if}
 
@@ -427,6 +547,30 @@
               <span class="result-label">{t('result.alcoholReading')}</span>
               <span class="result-value">{reverseResult}%</span>
             </div>
+          </div>
+        {/if}
+        {#if reverseProcess.length > 0}
+          <div class="process-section">
+            <button class="process-toggle" onclick={() => reverseProcessOpen = !reverseProcessOpen}>
+              <span class="process-toggle-icon" class:open={reverseProcessOpen}>▶</span>
+              <span>{t('process.title')}</span>
+            </button>
+            {#if reverseProcessOpen}
+              <div class="process-content">
+                {#each reverseProcess as item}
+                  <div class="process-step">
+                    <div class="step-number">{item.step}</div>
+                    <div class="step-body">
+                      <div class="step-label">{item.label}</div>
+                      <div class="step-detail">{item.detail}</div>
+                      {#if item.formula}
+                        <div class="step-formula">{item.formula}</div>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </div>
         {/if}
       {/if}

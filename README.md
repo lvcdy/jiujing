@@ -1,6 +1,6 @@
 # 酒精浓度计算器
 
-基于 Excel 数据表，根据酒精计读数和当前温度，自动计算校正至 20℃ 标准状态下的**体积分数**与**质量分数**的桌面/网页工具。
+基于国家标准数据表，根据酒精计读数和当前温度，自动计算校正至 20℃ 标准状态下的**体积分数**与**质量分数**的桌面/网页工具。
 
 > 适用于酿造、检测、销售等场景中对酒精浓度进行温度校正与单位换算的日常需求。
 
@@ -21,7 +21,7 @@
 - 🌡️ **温度单位切换** — 支持 ℃ / °F 自由切换，设置自动保存
 - 🌐 **中英文界面** — 支持简体中文与英文切换（i18next 国际化）
 - ⌨️ **键盘快捷键** — Enter 计算、Tab 切换、Esc 清空，操作高效流畅
-- 🖥️ **多端支持** — 可打包为 Electron 或 Tauri 桌面应用（Windows）
+- 🖥️ **桌面应用** — 基于 Tauri 2 构建，轻量高性能（Windows）
 - 🎯 **高精度计算** — 全程使用 `big.js`，避免浮点误差
 
 ---
@@ -32,8 +32,7 @@
 |------|------|
 | UI 框架 | Svelte 5 + TypeScript |
 | 构建工具 | Vite |
-| 桌面封装 | Electron 41 / Tauri 2 |
-| Excel 解析 | xlsx |
+| 桌面封装 | Tauri 2 |
 | 高精度计算 | big.js |
 | 图表可视化 | Chart.js 4（Canvas 直接渲染） |
 | 国际化 | i18next（纯 JS，无框架绑定） |
@@ -43,7 +42,7 @@
 
 ## 环境要求
 
-- **Node.js** 18 或 20（推荐使用 LTS 版本）
+- **Node.js** ≥ 18（推荐使用 LTS 版本）
 - **pnpm**（推荐）或 npm / yarn
 - 打包 Tauri 版本时还需要安装 [Rust 工具链](https://www.rust-lang.org/tools/install)
 
@@ -58,14 +57,11 @@ pnpm install
 # 启动网页开发服务器（浏览器预览）
 pnpm dev
 
-# 启动 Electron 桌面应用（开发模式）
-pnpm electron:dev
+# 启动 Tauri 桌面应用（开发模式）
+pnpm tauri dev
 
 # 构建网页产物
 pnpm build
-
-# 构建 Electron 桌面安装包（Windows zip）
-pnpm electron:dist
 
 # 构建 Tauri 桌面安装包（Windows NSIS）
 pnpm tauri build
@@ -132,7 +128,7 @@ src/i18n/locales/
 ```
 jiujing/
 ├── src/
-│   ├── assets/              # Excel 数据文件（jiujing.xlsx、wendu.xlsx）
+│   ├── assets/              # 数据文件（jiujing.json、wendu.json）
 │   ├── components/
 │   │   ├── Calculator.svelte  # 主计算器组件（Svelte 5，含全部四个功能标签页）
 │   │   └── Calculator.css     # 组件样式（玻璃拟态风格）
@@ -140,10 +136,9 @@ jiujing/
 │   │   ├── index.ts         # i18next 初始化（纯 JS，无框架绑定）
 │   │   └── locales/         # 语言包（zh-CN / en-US）
 │   ├── utils/
-│   │   └── excel.ts         # Excel 加载、缓存与插值计算
+│   │   └── data.ts            # 数据加载、缓存与插值计算
 │   └── main.ts              # 应用入口（Svelte mount）
-├── electron/
-│   └── main.js              # Electron 主进程
+├── excel/                   # 原始 Excel 数据文件（jiujing.xlsx、wendu.xlsx）
 ├── src-tauri/               # Tauri 配置与 Rust 代码
 ├── public/                  # 静态资源
 ├── index.html
@@ -158,9 +153,8 @@ jiujing/
 
 ### 1. 数据读取与结构化
 
-- 通过 `fetch` 读取 `assets` 中的 Excel 文件，使用 `XLSX.read` 解析
-- 将首行作为列坐标（酒精计读数），首列作为行坐标（温度，降序）
-- 工作表单元格通过 `XLSX.utils.encode_cell` 进行索引定位
+- 通过 `fetch` 读取 `assets` 中的 JSON 数据文件
+- 列坐标（酒精计读数）与行坐标（温度，降序）从数据中提取
 - 解析结果缓存于内存 `Map` 中，避免重复加载
 
 ### 2. 坐标定位（二分查找）

@@ -70,6 +70,18 @@ export default {
   keyboard: {
     hints: 'Enter 计算/跳转 · Tab 切换 · Esc 清空 · Ctrl+A 全选'
   },
+  process: {
+    title: '计算过程',
+    inputParams: '输入参数',
+    tempConvert: '温度单位转换',
+    bilinearInterpolate: '双线性插值查表',
+    lookupTable: '查表',
+    massLookup: '质量分数查表',
+    densityLookup: '相对密度查表',
+    uncertainty: '不确定度估算',
+    reverseInterpolate: '反向插值查表',
+    searchInTable: '在酒精计-温度-标准浓度表中搜索'
+  },
   language: {
     zh: '中文',
     en: 'English'

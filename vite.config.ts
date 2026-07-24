@@ -12,9 +12,6 @@ export default defineConfig({
           if (id.includes('i18next')) {
             return 'i18n';
           }
-          if (id.includes('xlsx')) {
-            return 'xlsx';
-          }
           if (id.includes('big.js')) {
             return 'big';
           }

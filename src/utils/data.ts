@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx'
 import Big from 'big.js'
 
 // 设置big.js的舍入模式为传统四舍五入
@@ -20,7 +19,7 @@ const round2 = (num: number): string => {
   return new Big(num).toFixed(2)
 }
 
-// 延迟加载并解析Excel数据到缓存
+// 延迟加载并解析JSON数据到缓存
 export const loadExcelData = async (url: string, key: string): Promise<ExcelCache | null> => {
   // 检查缓存
   if (cache.has(key)) {
@@ -28,67 +27,29 @@ export const loadExcelData = async (url: string, key: string): Promise<ExcelCach
   }
 
   try {
-    // 加载Excel文件
+    // 加载JSON文件
     const response = await fetch(url)
-    const arrayBuffer = await response.arrayBuffer()
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+    const json = await response.json()
 
-    const ws = workbook.Sheets[workbook.SheetNames[0]]
-    if (!ws) {
-      console.error('Excel文件中没有工作表')
-      return null
-    }
+    const colCoords: number[] = json.colCoords || []
+    const rowCoords: number[] = json.rowCoords || []
 
-    // 读取列坐标（温度）
-    const colCoords: number[] = []
-    for (let c = 1; ; c++) {
-      const val = ws[XLSX.utils.encode_cell({ r: 0, c })]?.v
-      if (val === undefined) break
-      const num = Number(val)
-      if (!isNaN(num)) colCoords.push(num)
-    }
-
-    // 读取行坐标（酒精计读数）
-    const rowCoords: number[] = []
-    for (let r = 1; ; r++) {
-      const val = ws[XLSX.utils.encode_cell({ r, c: 0 })]?.v
-      if (val === undefined) break
-      const num = Number(val)
-      if (!isNaN(num)) rowCoords.push(num)
-    }
-
-    // 读取数据到Map
+    // 将普通对象转换为Map
     const data = new Map<string, number>()
-    for (let r = 0; r < rowCoords.length; r++) {
-      for (let c = 0; c < colCoords.length; c++) {
-        const val = ws[XLSX.utils.encode_cell({ r: r + 1, c: c + 1 })]?.v
-        if (val !== undefined) {
-          data.set(`${r},${c}`, Number(val))
-        }
+    if (json.data) {
+      for (const [k, v] of Object.entries(json.data)) {
+        data.set(k, v as number)
       }
     }
 
-    // 读取体积-质量-密度数据
-    const volMassData: [number, number][] = []
-    const volDensityData: [number, number][] = []
-    for (let r = 1; ; r++) {
-      const vol = ws[XLSX.utils.encode_cell({ r, c: 1 })]?.v
-      const density = ws[XLSX.utils.encode_cell({ r, c: 2 })]?.v
-      const mass = ws[XLSX.utils.encode_cell({ r, c: 3 })]?.v
-      if (vol === undefined) break
-      if (vol !== null && mass !== null) {
-        volMassData.push([Number(vol), Number(mass)])
-      }
-      if (vol !== null && density !== null) {
-        volDensityData.push([Number(vol), Number(density)])
-      }
-    }
+    const volMassData: [number, number][] = json.volMassData || []
+    const volDensityData: [number, number][] = json.volDensityData || []
 
     const result = { colCoords, rowCoords, data, volMassData, volDensityData }
     cache.set(key, result)
     return result
   } catch (error) {
-    console.error('加载Excel数据失败:', error)
+    console.error('加载JSON数据失败:', error)
     return null
   }
 }
