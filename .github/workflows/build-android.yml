@@ -115,6 +115,10 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
 
+      # 初始化 Android 项目
+      - name: Init Android project
+        run: pnpm exec tauri android init
+
       # 构建 Android APK
       - name: Build Android
         run: pnpm exec tauri android build --target ${{ matrix.tauri_target }}
