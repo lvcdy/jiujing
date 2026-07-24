@@ -88,10 +88,8 @@ jobs:
           workspaces: src-tauri
           key: ${{ matrix.target }}
 
-      # 构建 Tauri，跳过前端构建
+      # 构建 Tauri，前端产物已通过 artifact 传入
       - run: pnpm exec tauri build --target ${{ matrix.target }}
-        env:
-          TAURI_SKIP_FRONTEND_BUILD: "true"
 
       # 打包安装程序
       - shell: pwsh
