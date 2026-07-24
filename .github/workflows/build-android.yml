@@ -54,8 +54,10 @@ jobs:
         include:
           - arch: arm64
             target: aarch64-linux-android
+            tauri_target: aarch64
           - arch: armv7
             target: armv7-linux-androideabi
+            tauri_target: armv7
 
     steps:
       - uses: actions/checkout@v4
@@ -115,7 +117,7 @@ jobs:
 
       # 构建 Android APK
       - name: Build Android
-        run: pnpm exec tauri android build --target ${{ matrix.target }}
+        run: pnpm exec tauri android build --target ${{ matrix.tauri_target }}
 
       # 上传构建产物
       - uses: actions/upload-artifact@v4
