@@ -142,6 +142,45 @@ jobs:
       - name: Init Android project
         run: pnpm exec tauri android init
 
+      # 配置 Android 签名
+      - name: Setup Android signing
+        if: ${{ env.ANDROID_KEY_BASE64 != '' }}
+        env:
+          ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          # 解码 keystore 文件
+          base64 -d <<< "$ANDROID_KEY_BASE64" > $RUNNER_TEMP/keystore.jks
+
+          # 创建 keystore.properties
+          cd src-tauri/gen/android
+          cat > keystore.properties << EOF
+          keyAlias=$ANDROID_KEY_ALIAS
+          password=$ANDROID_KEY_PASSWORD
+          storeFile=$RUNNER_TEMP/keystore.jks
+          EOF
+
+          # 修改 build.gradle.kts 添加签名配置
+          cd app
+          sed -i '1s/^/import java.io.FileInputStream\n/' build.gradle.kts
+          sed -i '/buildTypes/i\
+          signingConfigs {\
+              create("release") {\
+                  val keystorePropertiesFile = rootProject.file("keystore.properties")\
+                  val keystoreProperties = java.util.Properties()\
+                  if (keystorePropertiesFile.exists()) {\
+                      keystoreProperties.load(FileInputStream(keystorePropertiesFile))\
+                  }\
+                  keyAlias = keystoreProperties["keyAlias"] as String\
+                  keyPassword = keystoreProperties["password"] as String\
+                  storeFile = file(keystoreProperties["storeFile"] as String)\
+                  storePassword = keystoreProperties["password"] as String\
+              }\
+          }
+          ' build.gradle.kts
+          sed -i 's/getByName("release") {/getByName("release") {\n            signingConfig = signingConfigs.getByName("release")/' build.gradle.kts
+
       # 构建 Android APK
       - name: Build Android
         run: pnpm exec tauri android build --target ${{ matrix.tauri_target }}
