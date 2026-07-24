@@ -17,8 +17,8 @@ export default {
     loading: '加载中...'
   },
   result: {
-    standard: '校正后20℃标准浓度',
-    mass: '校正后20℃标准浓度',
+    standard: '校正后20℃标准浓度 (体积分数)',
+    mass: '校正后20℃标准浓度 (质量分数)',
     unit: {
       vol: '% vol',
       mass: '% m'

@@ -38,6 +38,9 @@ export default function Calculator() {
     }
 
     setError('')
+    console.log('\n🚀 开始计算酒精浓度')
+    console.log('输入: 酒精计读数 =', alcohol, ', 温度 =', temperature, '℃')
+
     const volRaw = bilinearInterpolate(Number(temperature), Number(alcohol))
 
     if (!volRaw) {
@@ -47,6 +50,14 @@ export default function Calculator() {
 
     const volFixed = new Big(volRaw).toFixed(2)
     const mass = getMassFromVolume(volRaw)
+
+    console.log('\n✅ 计算完成!')
+    console.log('   - 校正后20℃标准浓度 (体积分数):', volFixed, '% vol')
+    if (mass) {
+      console.log('   - 校正后20℃标准浓度 (质量分数):', mass, '% m')
+    }
+    console.log('\n')
+
     setResult({ vol: volFixed, mass })
   }, [alcohol, temperature, t])
 

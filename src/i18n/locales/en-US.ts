@@ -17,8 +17,8 @@ export default {
     loading: 'Loading...'
   },
   result: {
-    standard: 'Corrected 20℃ Standard Concentration',
-    mass: 'Corrected 20℃ Standard Concentration',
+    standard: 'Corrected 20℃ Standard (Volume)',
+    mass: 'Corrected 20℃ Standard (Mass)',
     unit: {
       vol: '% vol',
       mass: '% m'

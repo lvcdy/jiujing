@@ -16,8 +16,8 @@
 
 .glass-card {
   background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow:
@@ -51,7 +51,7 @@
   position: relative;
   z-index: 1;
   border-radius: 24px 24px 0 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .card-header::before {
@@ -63,6 +63,8 @@
   bottom: 0;
   background: radial-gradient(circle at 50% 0%, rgba(102, 126, 234, 0.4) 0%, transparent 70%);
   pointer-events: none;
+  border-radius: 24px 24px 0 0;
+  clip-path: inset(0 0 0 0 round 24px 24px 0 0);
 }
 
 .header-content {
@@ -99,8 +101,8 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   display: flex;
   align-items: center;
@@ -138,8 +140,8 @@
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
-  backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   min-width: 120px;
   max-height: 200px;
@@ -324,19 +326,6 @@
   overflow: hidden;
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
   text-align: center;
-}
-
-.clear-btn {
-  padding: 18px 28px;
-  background: rgba(255, 255, 255, 0.15);
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  border-radius: 14px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  white-space: nowrap;
 }
 
 .calculate-btn::before {
