@@ -121,6 +121,12 @@ export default function Calculator() {
   return (
     <div className="calculator">
       <div className="glass-card">
+        {loading && (
+          <div className="loading-overlay">
+            <div className="loading-spinner" />
+            <span className="loading-text">{t('button.loading')}</span>
+          </div>
+        )}
         <header className="card-header">
           <div className="header-content">
             <div className="logo">
@@ -201,7 +207,7 @@ export default function Calculator() {
               onClick={calculate}
               disabled={loading || !alcohol || !temperature}
             >
-              {loading ? t('button.loading') : t('button.calculate')}
+              {t('button.calculate')}
             </button>
 
             <button
@@ -214,7 +220,7 @@ export default function Calculator() {
             </button>
           </div>
 
-          {error && <div className="error-toast">{error}</div>}
+          {error && <div className="error-toast"><span>⚠️</span>{error}</div>}
 
           {result && (
             <div className="results">
@@ -232,7 +238,7 @@ export default function Calculator() {
           )}
 
           <div className="keyboard-hints">
-            <span>{t('keyboard.hints')}</span>
+            {t('keyboard.hints')}
           </div>
         </div>
       </div>

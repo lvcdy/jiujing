@@ -30,7 +30,7 @@ export default {
     loadFailed: 'Data loading failed'
   },
   keyboard: {
-    hints: 'Keyboard shortcuts: Enter Calculate/Next | Tab Switch Input | Esc Clear | Ctrl+A Select All'
+    hints: 'Enter Calculate · Tab Switch · Esc Clear · Ctrl+A Select'
   },
   language: {
     zh: '中文',

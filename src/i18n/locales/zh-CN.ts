@@ -30,7 +30,7 @@ export default {
     loadFailed: '数据加载失败'
   },
   keyboard: {
-    hints: '快捷键: Enter 计算/跳转 | Tab 切换输入 | Esc 清空 | Ctrl+A 全选'
+    hints: 'Enter 计算/跳转 · Tab 切换 · Esc 清空 · Ctrl+A 全选'
   },
   language: {
     zh: '中文',
