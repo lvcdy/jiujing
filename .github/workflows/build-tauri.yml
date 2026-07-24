@@ -91,16 +91,6 @@ jobs:
       # 构建 Tauri，前端产物已通过 artifact 传入
       - run: pnpm exec tauri build --target ${{ matrix.target }}
 
-      # 打包安装程序
-      - shell: pwsh
-        run: |
-          $version = node -p "require('./package.json').version"
-          $bundleDir = "src-tauri/target/${{ matrix.target }}/release/bundle"
-          $zipName = "jiujing-tauri-$version-windows-${{ matrix.arch }}.zip"
-          if (Test-Path $bundleDir) {
-            Compress-Archive -Path "$bundleDir/*" -DestinationPath $zipName
-          }
-
       # 打包便携版（开箱即用）
       - shell: pwsh
         run: |
