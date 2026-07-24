@@ -14,6 +14,7 @@ env:
   NODE_VERSION: 24
   PNPM_VERSION: 10
   JAVA_VERSION: 17
+  NDK_VERSION: "27.0.12077973"
   # sccache 配置
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
@@ -68,20 +69,19 @@ jobs:
           name: frontend-dist
           path: dist/
 
-      # 设置 Java（带 Gradle 缓存）
+      # 设置 Java
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-          cache: gradle
 
-      # Gradle 缓存
+      # Gradle 缓存（init 之后目录才存在，这里用静态 key + restore-keys 回退）
       - uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('src-tauri/gen/android/**/*.gradle*', 'src-tauri/gen/android/**/gradle-wrapper.properties') }}
+          key: gradle-${{ runner.os }}-android
           restore-keys: |
             gradle-${{ runner.os }}-
 
@@ -93,14 +93,14 @@ jobs:
             /usr/local/lib/android/sdk/ndk/27.0.12077973
             /usr/local/lib/android/sdk/platforms
             /usr/local/lib/android/sdk/build-tools
-          key: android-sdk-ndk-27.0.12077973-${{ runner.os }}
+          key: android-sdk-ndk-${{ env.NDK_VERSION }}-${{ runner.os }}
 
       # 设置 Android SDK & NDK
       - uses: android-actions/setup-android@v3
 
       - name: Install NDK
         if: steps.android-sdk-cache.outputs.cache-hit != 'true'
-        run: sdkmanager "ndk;27.0.12077973"
+        run: sdkmanager "ndk;${{ env.NDK_VERSION }}"
 
       # 设置 Node.js + pnpm
       - uses: pnpm/action-setup@v4
@@ -136,7 +136,7 @@ jobs:
       - name: Set Android env
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
 
       # 初始化 Android 项目
       - name: Init Android project
