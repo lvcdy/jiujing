@@ -68,7 +68,7 @@ export default {
     outOfRange: 'Value out of data range'
   },
   keyboard: {
-    hints: 'Enter Calculate · Tab Switch · Esc Clear · Ctrl+A Select'
+    hints: 'Enter Calculate · Esc Clear · Ctrl+A Select · Ctrl+1~4 Switch Tab'
   },
   process: {
     title: 'Calculation Process',

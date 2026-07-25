@@ -68,7 +68,7 @@ export default {
     outOfRange: '输入值超出数据范围'
   },
   keyboard: {
-    hints: 'Enter 计算/跳转 · Tab 切换 · Esc 清空 · Ctrl+A 全选'
+    hints: 'Enter 计算 · Esc 清空 · Ctrl+A 全选 · Ctrl+1~4 切换功能'
   },
   process: {
     title: '计算过程',

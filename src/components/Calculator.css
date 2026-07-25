@@ -220,7 +220,8 @@
   opacity: 0.7;
 }
 
-.language-dropdown:hover .dropdown-arrow {
+.language-dropdown:hover .dropdown-arrow,
+.language-dropdown.open .dropdown-arrow {
   transform: rotate(180deg);
   opacity: 1;
 }
@@ -246,7 +247,8 @@
   overflow: hidden;
 }
 
-.language-dropdown:hover .dropdown-menu {
+.language-dropdown:hover .dropdown-menu,
+.language-dropdown.open .dropdown-menu {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);

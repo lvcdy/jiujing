@@ -18,7 +18,11 @@
   // i18n
   let lang = $state(i18n.language || 'zh-CN')
   i18n.on('languageChanged', (lng: string) => { lang = lng })
-  const t = $derived.by(() => (key: string) => i18n.t(key))
+  // t 必须依赖 lang 才能在语言切换时触发响应式更新
+  const t = $derived.by(() => {
+    void lang
+    return (key: string) => i18n.t(key)
+  })
 
   // 全局状态
   let activeTab = $state<Tab>('forward')
@@ -27,6 +31,7 @@
   let tempUnit = $state<'℃' | '°F'>(
     (localStorage.getItem('tempUnit') as '℃' | '°F') || '℃'
   )
+  let langDropdownOpen = $state(false)
 
   // 正向计算
   let alcohol = $state('')
@@ -156,6 +161,27 @@
         }
       }
     })
+  })
+
+// 全局键盘事件
+  onMount(() => {
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  })
+
+  // 点击外部关闭语言下拉
+  function handleDocumentClick(e: MouseEvent) {
+    if (langDropdownOpen) {
+      const target = e.target as HTMLElement
+      if (!target.closest('.language-dropdown')) {
+        langDropdownOpen = false
+      }
+    }
+  }
+
+  onMount(() => {
+    document.addEventListener('click', handleDocumentClick)
+    return () => document.removeEventListener('click', handleDocumentClick)
   })
 
   onDestroy(() => {
@@ -297,13 +323,21 @@
 
   function doDensityLookup() {
     error = ''
+    // 先清空上一次的结果，确保每次查询都能触发响应式更新
+    densityVol = ''
+    densityMass = ''
+    densityDensity = ''
     if (densityInput) {
-      const vol = getVolumeFromDensity(Number(densityInput))
+      const numVal = Number(densityInput)
+      if (isNaN(numVal) || !isFinite(numVal)) { error = t('error.failed'); return }
+      const vol = getVolumeFromDensity(numVal)
       if (!vol) { error = t('error.failed'); return }
       densityVol = vol
       densityMass = getMassFromVolume(vol) ?? ''
       densityDensity = densityInput
     } else if (volInput) {
+      const numVal = Number(volInput)
+      if (isNaN(numVal) || !isFinite(numVal)) { error = t('error.failed'); return }
       const density = getDensityFromVolume(volInput)
       if (!density) { error = t('error.failed'); return }
       densityVol = volInput
@@ -312,6 +346,11 @@
     } else {
       error = t('error.required')
     }
+  }
+
+  function updateChart() {
+    // 图表通过 $effect 自动响应 chartAlcohol 变化，此函数供键盘调用
+    if (!chartAlcohol) error = t('error.required')
   }
 
   function clearAll() {
@@ -336,6 +375,12 @@
     reverseTemp = convert(reverseTemp)
   }
 
+  function changeLanguage(lng: string) {
+    i18n.changeLanguage(lng)
+    localStorage.setItem('language', lng)
+    langDropdownOpen = false
+  }
+
   function handleKeyDown(e: KeyboardEvent, field: string) {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -349,6 +394,8 @@
         else error = t('error.required')
       } else if (activeTab === 'density') {
         doDensityLookup()
+      } else if (activeTab === 'chart') {
+        if (chartAlcohol) updateChart()
       }
     }
     if (e.key === 'Escape') {
@@ -368,6 +415,30 @@
         densityInput: densityInputEl, volInput: volInputEl, chartAlcohol: chartAlcoholEl,
       }
       refs[field]?.select()
+    }
+  }
+
+  // 全局键盘快捷键：Ctrl+1/2/3/4 切换 Tab
+  function handleGlobalKeyDown(e: KeyboardEvent) {
+    // 关闭语言下拉
+    if (langDropdownOpen && e.key === 'Escape') {
+      langDropdownOpen = false
+      return
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      const tabMap: Record<string, Tab> = { '1': 'forward', '2': 'reverse', '3': 'density', '4': 'chart' }
+      if (tabMap[e.key]) {
+        e.preventDefault()
+        activeTab = tabMap[e.key]
+        error = ''
+        // 自动 focus 到对应 Tab 的第一个输入框
+        setTimeout(() => {
+          if (activeTab === 'forward') alcoholInputEl?.focus()
+          else if (activeTab === 'reverse') targetVolEl?.focus()
+          else if (activeTab === 'density') densityInputEl?.focus()
+          else if (activeTab === 'chart') chartAlcoholEl?.focus()
+        }, 50)
+      }
     }
   }
 
@@ -391,16 +462,20 @@
         </div>
         <div class="header-controls">
           <button class="temp-unit-btn" onclick={toggleTempUnit} title="切换单位">{tempUnit}</button>
-          <div class="language-dropdown">
-            <button class="language-btn">
+          <div class="language-dropdown" class:open={langDropdownOpen}>
+            <button class="language-btn" onclick={() => langDropdownOpen = !langDropdownOpen}
+              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); langDropdownOpen = !langDropdownOpen } }}
+              aria-expanded={langDropdownOpen} aria-haspopup="true">
               {lang === 'zh-CN' ? '中文' : 'English'}
               <span class="dropdown-arrow">▼</span>
             </button>
             <div class="dropdown-menu">
               <button class="dropdown-item" class:active={lang === 'zh-CN'}
-                onclick={() => { i18n.changeLanguage('zh-CN'); localStorage.setItem('language', 'zh-CN') }}>中文</button>
+                onclick={() => changeLanguage('zh-CN')}
+                onkeydown={(e) => { if (e.key === 'Enter') changeLanguage('zh-CN') }}>中文</button>
               <button class="dropdown-item" class:active={lang === 'en-US'}
-                onclick={() => { i18n.changeLanguage('en-US'); localStorage.setItem('language', 'en-US') }}>English</button>
+                onclick={() => changeLanguage('en-US')}
+                onkeydown={(e) => { if (e.key === 'Enter') changeLanguage('en-US') }}>English</button>
             </div>
           </div>
         </div>
@@ -573,6 +648,7 @@
             {/if}
           </div>
         {/if}
+        <div class="keyboard-hints">{t('keyboard.hints')}</div>
       {/if}
 
       <!-- 密度互查 -->
@@ -629,6 +705,7 @@
             {/if}
           </div>
         {/if}
+        <div class="keyboard-hints">{t('keyboard.hints')}</div>
       {/if}
 
       <!-- 图表 -->
@@ -652,6 +729,7 @@
         {:else}
           <div class="chart-placeholder">📊 {t('chart.alcoholFixed')}</div>
         {/if}
+        <div class="keyboard-hints">{t('keyboard.hints')}</div>
       {/if}
     </div>
   </div>
