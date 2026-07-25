@@ -144,20 +144,38 @@ jobs:
 
       # 配置 Android 签名
       - name: Setup Android signing
-        if: ${{ env.ANDROID_KEY_BASE64 != '' }}
         env:
           ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          # 解码 keystore 文件
-          base64 -d <<< "$ANDROID_KEY_BASE64" > $RUNNER_TEMP/keystore.jks
+          # 判断使用正式签名还是自动生成 debug keystore
+          if [ -n "$ANDROID_KEY_BASE64" ]; then
+            echo "Using release signing key from secrets"
+            base64 -d <<< "$ANDROID_KEY_BASE64" > $RUNNER_TEMP/keystore.jks
+            KEY_ALIAS="$ANDROID_KEY_ALIAS"
+            KEY_PASSWORD="$ANDROID_KEY_PASSWORD"
+          else
+            echo "No signing secrets found, generating debug keystore"
+            keytool -genkeypair \
+              -v \
+              -keystore $RUNNER_TEMP/keystore.jks \
+              -alias debug \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass android \
+              -keypass android \
+              -dname "CN=Debug, OU=Debug, O=Debug, L=Debug, ST=Debug, C=CN"
+            KEY_ALIAS="debug"
+            KEY_PASSWORD="android"
+          fi
 
           # 创建 keystore.properties
           cd src-tauri/gen/android
           cat > keystore.properties << EOF
-          keyAlias=$ANDROID_KEY_ALIAS
-          password=$ANDROID_KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          password=$KEY_PASSWORD
           storeFile=$RUNNER_TEMP/keystore.jks
           EOF
 
