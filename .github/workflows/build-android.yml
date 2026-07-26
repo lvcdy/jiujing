@@ -13,8 +13,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   NODE_VERSION: 24
   PNPM_VERSION: 10
-  JAVA_VERSION: 17
-  NDK_VERSION: "27.0.12077973"
+  JAVA_VERSION: 21
   # sccache 配置
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
@@ -69,38 +68,50 @@ jobs:
           name: frontend-dist
           path: dist/
 
-      # 设置 Java
+      # 设置 Java 21（AGP 8.x 要求）
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
-      # Gradle 缓存（init 之后目录才存在，这里用静态 key + restore-keys 回退）
+      # 设置 Android SDK（会安装 command-line tools）
+      - uses: android-actions/setup-android@v3
+
+      # 检测已安装的 NDK 版本并设置环境变量
+      - name: Detect NDK version
+        run: |
+          # 列出已安装的 NDK 版本
+          echo "Available NDKs:"
+          ls -d "$ANDROID_HOME/ndk/"*/ 2>/dev/null || echo "No NDKs found"
+
+          # 获取第一个可用的 NDK 版本号
+          NDK_VER=$(ls -d "$ANDROID_HOME/ndk/"*/ 2>/dev/null | head -1 | xargs basename 2>/dev/null || true)
+
+          if [ -z "$NDK_VER" ]; then
+            echo "No NDK found, installing latest..."
+            sdkmanager "ndk;latest"
+            NDK_VER=$(ls -d "$ANDROID_HOME/ndk/"*/ 2>/dev/null | head -1 | xargs basename 2>/dev/null || true)
+          fi
+
+          if [ -z "$NDK_VER" ]; then
+            echo "::error::Failed to find or install any NDK version"
+            exit 1
+          fi
+
+          echo "Using NDK: $NDK_VER"
+          echo "NDK_VERSION=$NDK_VER" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VER" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+
+      # Gradle 缓存
       - uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-android
+          key: gradle-${{ runner.os }}-android-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: |
-            gradle-${{ runner.os }}-
-
-      # Android SDK & NDK 缓存
-      - uses: actions/cache@v4
-        id: android-sdk-cache
-        with:
-          path: |
-            /usr/local/lib/android/sdk/ndk/27.0.12077973
-            /usr/local/lib/android/sdk/platforms
-            /usr/local/lib/android/sdk/build-tools
-          key: android-sdk-ndk-${{ env.NDK_VERSION }}-${{ runner.os }}
-
-      # 设置 Android SDK & NDK
-      - uses: android-actions/setup-android@v3
-
-      - name: Install NDK
-        if: steps.android-sdk-cache.outputs.cache-hit != 'true'
-        run: sdkmanager "ndk;${{ env.NDK_VERSION }}"
+            gradle-${{ runner.os }}-android-
 
       # 设置 Node.js + pnpm
       - uses: pnpm/action-setup@v4
@@ -132,15 +143,22 @@ jobs:
           key: android-${{ matrix.target }}
           cache-on-failure: true
 
-      # 设置环境变量
-      - name: Set Android env
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "NDK_HOME=$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
-
       # 初始化 Android 项目
       - name: Init Android project
         run: pnpm exec tauri android init
+
+      # 确保生成的 build.gradle.kts 使用正确的 NDK 版本
+      - name: Patch NDK version in generated project
+        run: |
+          GRADLE_FILE="src-tauri/gen/android/app/build.gradle.kts"
+          if [ -f "$GRADLE_FILE" ]; then
+            echo "Patching ndkVersion to $NDK_VERSION"
+            sed -i "s/ndkVersion = \"[^\"]*\"/ndkVersion = \"$NDK_VERSION\"/" "$GRADLE_FILE"
+            echo "--- build.gradle.kts (first 40 lines) ---"
+            head -40 "$GRADLE_FILE"
+          else
+            echo "::warning::build.gradle.kts not found, skipping NDK version patch"
+          fi
 
       # 配置 Android 签名
       - name: Setup Android signing
@@ -148,56 +166,28 @@ jobs:
           ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           # 判断使用正式签名还是自动生成 debug keystore
           if [ -n "$ANDROID_KEY_BASE64" ]; then
             echo "Using release signing key from secrets"
-            base64 -d <<< "$ANDROID_KEY_BASE64" > $RUNNER_TEMP/keystore.jks
-            KEY_ALIAS="$ANDROID_KEY_ALIAS"
-            KEY_PASSWORD="$ANDROID_KEY_PASSWORD"
+            base64 -d <<< "$ANDROID_KEY_BASE64" > "$RUNNER_TEMP/keystore.jks"
           else
             echo "No signing secrets found, generating debug keystore"
-            keytool -genkeypair \
-              -v \
-              -keystore $RUNNER_TEMP/keystore.jks \
-              -alias debug \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass android \
-              -keypass android \
+            keytool -genkeypair -v \
+              -keystore "$RUNNER_TEMP/keystore.jks" \
+              -alias debug -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android \
               -dname "CN=Debug, OU=Debug, O=Debug, L=Debug, ST=Debug, C=CN"
-            KEY_ALIAS="debug"
-            KEY_PASSWORD="android"
+            export KEY_ALIAS="debug"
+            export KEY_PASSWORD="android"
           fi
 
-          # 创建 keystore.properties
-          cd src-tauri/gen/android
-          cat > keystore.properties << EOF
-          keyAlias=$KEY_ALIAS
-          password=$KEY_PASSWORD
-          storeFile=$RUNNER_TEMP/keystore.jks
-          EOF
-
-          # 修改 build.gradle.kts 添加签名配置
-          cd app
-          sed -i '1s/^/import java.io.FileInputStream\n/' build.gradle.kts
-          sed -i '/buildTypes/i\
-          signingConfigs {\
-              create("release") {\
-                  val keystorePropertiesFile = rootProject.file("keystore.properties")\
-                  val keystoreProperties = java.util.Properties()\
-                  if (keystorePropertiesFile.exists()) {\
-                      keystoreProperties.load(FileInputStream(keystorePropertiesFile))\
-                  }\
-                  keyAlias = keystoreProperties["keyAlias"] as String\
-                  keyPassword = keystoreProperties["password"] as String\
-                  storeFile = file(keystoreProperties["storeFile"] as String)\
-                  storePassword = keystoreProperties["password"] as String\
-              }\
-          }
-          ' build.gradle.kts
-          sed -i 's/getByName("release") {/getByName("release") {\n            signingConfig = signingConfigs.getByName("release")/' build.gradle.kts
+          # 用 node 脚本注入签名配置到 build.gradle.kts
+          node scripts/setup-android-signing.js "$RUNNER_TEMP/keystore.jks"
+          cat src-tauri/gen/android/keystore.properties
+          cat src-tauri/gen/android/app/build.gradle.kts
 
       # 构建 Android APK
       - name: Build Android
