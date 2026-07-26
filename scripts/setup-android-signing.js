@@ -24,10 +24,13 @@ if (!fs.existsSync(gradleFile)) {
 
 let content = fs.readFileSync(gradleFile, 'utf8');
 
-// 1. 添加 FileInputStream import
-if (!content.includes('import java.io.FileInputStream')) {
-  content = 'import java.io.FileInputStream\n' + content;
-  console.log('Added FileInputStream import');
+// 1. 添加 import 语句
+const importsToAdd = ['import java.io.FileInputStream', 'import java.util.Properties'];
+for (const imp of importsToAdd) {
+  if (!content.includes(imp)) {
+    content = imp + '\n' + content;
+    console.log(`Added ${imp}`);
+  }
 }
 
 // 2. 注入 signingConfigs 块（在 buildTypes 之前）
@@ -36,7 +39,7 @@ if (!content.includes('signingConfigs')) {
 signingConfigs {
     create("release") {
         val keystorePropertiesFile = rootProject.file("keystore.properties")
-        val keystoreProperties = java.util.Properties()
+        val keystoreProperties = Properties()
         if (keystorePropertiesFile.exists()) {
             keystoreProperties.load(FileInputStream(keystorePropertiesFile))
         }
