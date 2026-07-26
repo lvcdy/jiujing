@@ -9,6 +9,9 @@
   import jiujingJson from '../assets/jiujing.json?url'
   import wenduJson from '../assets/wendu.json?url'
   import i18n from '../i18n'
+  import ProcessSteps from './ProcessSteps.svelte'
+  import type { ProcessStep } from './ProcessSteps.svelte'
+  import ResultCard from './ResultCard.svelte'
   import './Calculator.css'
 
   Chart.register(LineController, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
@@ -41,15 +44,13 @@
   let forwardDensity = $state('')
   let forwardUncVol = $state('')
   let forwardUncMass = $state('')
-  let forwardProcess = $state<Array<{step: number, label: string, detail: string, formula?: string}>>([])
-  let forwardProcessOpen = $state(false)
+  let forwardProcess = $state<ProcessStep[]>([])
 
   // 反向计算
   let targetVol = $state('')
   let reverseTemp = $state('')
   let reverseResult = $state('')
-  let reverseProcess = $state<Array<{step: number, label: string, detail: string, formula?: string}>>([])
-  let reverseProcessOpen = $state(false)
+  let reverseProcess = $state<ProcessStep[]>([])
 
   // 密度互查
   let densityInput = $state('')
@@ -72,7 +73,7 @@
   let canvasEl: HTMLCanvasElement | undefined = $state()
 
   // Chart.js 实例
-  let chartInstance: any = null
+  let chartInstance: Chart | null = null
 
   // 图表数据（响应式）
   const chartData = $derived.by(() => {
@@ -92,7 +93,7 @@
     return { labels, values }
   })
 
-  // 加载数据
+  // 加载数据 & 全局事件
   onMount(() => {
     Promise.all([loadExcelData(jiujingJson, 'jiujing'), loadExcelData(wenduJson, 'wendu')])
       .then(() => {
@@ -104,14 +105,27 @@
         loading = false
       })
 
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    document.addEventListener('click', handleDocumentClick)
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown)
+      document.removeEventListener('click', handleDocumentClick)
+    }
   })
+
+  // 点击外部关闭语言下拉
+  function handleDocumentClick(e: MouseEvent) {
+    if (langDropdownOpen) {
+      const target = e.target as HTMLElement
+      if (!target.closest('.language-dropdown')) {
+        langDropdownOpen = false
+      }
+    }
+  }
 
   // 图表效果
   $effect(() => {
-    // 当画布元素或图表数据变化时触发
-    void canvasEl
-    void chartData
-    void tempUnit
+    void canvasEl; void chartData; void tempUnit
 
     if (chartInstance) { chartInstance.destroy(); chartInstance = null }
     if (!canvasEl || !chartData) return
@@ -163,27 +177,6 @@
     })
   })
 
-// 全局键盘事件
-  onMount(() => {
-    window.addEventListener('keydown', handleGlobalKeyDown)
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
-  })
-
-  // 点击外部关闭语言下拉
-  function handleDocumentClick(e: MouseEvent) {
-    if (langDropdownOpen) {
-      const target = e.target as HTMLElement
-      if (!target.closest('.language-dropdown')) {
-        langDropdownOpen = false
-      }
-    }
-  }
-
-  onMount(() => {
-    document.addEventListener('click', handleDocumentClick)
-    return () => document.removeEventListener('click', handleDocumentClick)
-  })
-
   onDestroy(() => {
     if (chartInstance) { chartInstance.destroy(); chartInstance = null }
   })
@@ -210,7 +203,7 @@
   function calculate() {
     if (!alcohol || !temperature) { error = t('error.required'); return }
     error = ''
-    const steps: Array<{step: number, label: string, detail: string, formula?: string}> = []
+    const steps: ProcessStep[] = []
     let stepNum = 1
 
     // Step 1: 输入参数
@@ -285,7 +278,7 @@
   function doReverse() {
     if (!targetVol || !reverseTemp) { error = t('error.required'); return }
     error = ''
-    const steps: Array<{step: number, label: string, detail: string, formula?: string}> = []
+    const steps: ProcessStep[] = []
     let stepNum = 1
 
     // Step 1: 输入参数
@@ -348,15 +341,10 @@
     }
   }
 
-  function updateChart() {
-    // 图表通过 $effect 自动响应 chartAlcohol 变化，此函数供键盘调用
-    if (!chartAlcohol) error = t('error.required')
-  }
-
   function clearAll() {
     alcohol = ''; temperature = ''; forwardVol = ''; forwardMass = ''; forwardDensity = ''
-    forwardUncVol = ''; forwardUncMass = ''; forwardProcess = []; forwardProcessOpen = false
-    targetVol = ''; reverseTemp = ''; reverseResult = ''; reverseProcess = []; reverseProcessOpen = false
+    forwardUncVol = ''; forwardUncMass = ''; forwardProcess = []
+    targetVol = ''; reverseTemp = ''; reverseResult = ''; reverseProcess = []
     densityInput = ''; volInput = ''; densityVol = ''; densityMass = ''; densityDensity = ''
     chartAlcohol = ''; error = ''
   }
@@ -395,7 +383,7 @@
       } else if (activeTab === 'density') {
         doDensityLookup()
       } else if (activeTab === 'chart') {
-        if (chartAlcohol) updateChart()
+        if (!chartAlcohol) error = t('error.required')
       }
     }
     if (e.key === 'Escape') {
@@ -524,64 +512,26 @@
         {/if}
         {#if forwardVol}
           <div class="results">
-            <div class="result-item primary">
-              <span class="result-label">{t('result.standard')}</span>
-              <span class="result-value">{forwardVol}{t('result.unit.vol')}</span>
-            </div>
+            <ResultCard label={t('result.standard')} value="{forwardVol}{t('result.unit.vol')}" variant="primary" />
             {#if forwardMass}
-              <div class="result-item secondary">
-                <span class="result-label">{t('result.mass')}</span>
-                <span class="result-value">{forwardMass}{t('result.unit.mass')}</span>
-              </div>
+              <ResultCard label={t('result.mass')} value="{forwardMass}{t('result.unit.mass')}" />
             {/if}
             {#if forwardDensity}
-              <div class="result-item secondary">
-                <span class="result-label">{t('result.density')}</span>
-                <span class="result-value">{forwardDensity}{t('result.unit.density')}</span>
-              </div>
+              <ResultCard label={t('result.density')} value="{forwardDensity}{t('result.unit.density')}" />
             {/if}
             {#if forwardUncVol}
               <div class="uncertainty-section">
                 <div class="uncertainty-title">{t('uncertainty.title')}</div>
-                <div class="result-item secondary">
-                  <span class="result-label">{t('uncertainty.volResult')}</span>
-                  <span class="result-value">±{forwardUncVol}{t('result.unit.vol')}</span>
-                </div>
+                <ResultCard label={t('uncertainty.volResult')} value="±{forwardUncVol}{t('result.unit.vol')}" />
                 {#if forwardUncMass}
-                  <div class="result-item secondary">
-                    <span class="result-label">{t('uncertainty.massResult')}</span>
-                    <span class="result-value">±{forwardUncMass}{t('result.unit.mass')}</span>
-                  </div>
+                  <ResultCard label={t('uncertainty.massResult')} value="±{forwardUncMass}{t('result.unit.mass')}" />
                 {/if}
                 <div class="uncertainty-hint">{t('uncertainty.hint')}</div>
               </div>
             {/if}
           </div>
         {/if}
-        {#if forwardProcess.length > 0}
-          <div class="process-section">
-            <button class="process-toggle" onclick={() => forwardProcessOpen = !forwardProcessOpen}>
-              <span class="process-toggle-icon" class:open={forwardProcessOpen}>▶</span>
-              <span>{t('process.title')}</span>
-            </button>
-            {#if forwardProcessOpen}
-              <div class="process-content">
-                {#each forwardProcess as item}
-                  <div class="process-step">
-                    <div class="step-number">{item.step}</div>
-                    <div class="step-body">
-                      <div class="step-label">{item.label}</div>
-                      <div class="step-detail">{item.detail}</div>
-                      {#if item.formula}
-                        <div class="step-formula">{item.formula}</div>
-                      {/if}
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        {/if}
+        <ProcessSteps steps={forwardProcess} />
         <div class="keyboard-hints">{t('keyboard.hints')}</div>
       {/if}
 
@@ -618,36 +568,10 @@
         {/if}
         {#if reverseResult}
           <div class="results">
-            <div class="result-item primary">
-              <span class="result-label">{t('result.alcoholReading')}</span>
-              <span class="result-value">{reverseResult}%</span>
-            </div>
+            <ResultCard label={t('result.alcoholReading')} value="{reverseResult}%" variant="primary" />
           </div>
         {/if}
-        {#if reverseProcess.length > 0}
-          <div class="process-section">
-            <button class="process-toggle" onclick={() => reverseProcessOpen = !reverseProcessOpen}>
-              <span class="process-toggle-icon" class:open={reverseProcessOpen}>▶</span>
-              <span>{t('process.title')}</span>
-            </button>
-            {#if reverseProcessOpen}
-              <div class="process-content">
-                {#each reverseProcess as item}
-                  <div class="process-step">
-                    <div class="step-number">{item.step}</div>
-                    <div class="step-body">
-                      <div class="step-label">{item.label}</div>
-                      <div class="step-detail">{item.detail}</div>
-                      {#if item.formula}
-                        <div class="step-formula">{item.formula}</div>
-                      {/if}
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          </div>
-        {/if}
+        <ProcessSteps steps={reverseProcess} />
         <div class="keyboard-hints">{t('keyboard.hints')}</div>
       {/if}
 
@@ -687,21 +611,12 @@
         {/if}
         {#if densityVol}
           <div class="results">
-            <div class="result-item secondary">
-              <span class="result-label">{t('result.volPercent')}</span>
-              <span class="result-value">{densityVol}% vol</span>
-            </div>
+            <ResultCard label={t('result.volPercent')} value="{densityVol}% vol" />
             {#if densityMass}
-              <div class="result-item secondary">
-                <span class="result-label">{t('result.massPercent')}</span>
-                <span class="result-value">{densityMass}% m</span>
-              </div>
+              <ResultCard label={t('result.massPercent')} value="{densityMass}% m" />
             {/if}
             {#if densityDensity}
-              <div class="result-item secondary">
-                <span class="result-label">{t('result.density')}</span>
-                <span class="result-value">{densityDensity}{t('result.unit.density')}</span>
-              </div>
+              <ResultCard label={t('result.density')} value="{densityDensity}{t('result.unit.density')}" />
             {/if}
           </div>
         {/if}

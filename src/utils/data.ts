@@ -3,7 +3,15 @@ import Big from 'big.js'
 // 设置big.js的舍入模式为传统四舍五入
 Big.RM = 1 // roundHalfUp
 
-// 缓存结构
+// ──── 类型定义 ────
+
+/** 不确定度估算结果 */
+export interface UncertaintyResult {
+  vol: string
+  mass: string | null
+}
+
+/** JSON 数据源的缓存结构 */
 interface ExcelCache {
   colCoords: number[]
   rowCoords: number[]
@@ -12,29 +20,60 @@ interface ExcelCache {
   volDensityData: [number, number][]  // [体积分数, 相对密度]
 }
 
+// ──── 内部工具 ────
+
 const cache = new Map<string, ExcelCache>()
+
+const cache_get = (key: string): ExcelCache | null => cache.get(key) || null
 
 const round2 = (num: number): string => {
   if (!isFinite(num) || isNaN(num)) return '0.00'
   return new Big(num).toFixed(2)
 }
 
-// 延迟加载并解析JSON数据到缓存
-export const loadExcelData = async (url: string, key: string): Promise<ExcelCache | null> => {
-  // 检查缓存
-  if (cache.has(key)) {
-    return cache.get(key)!
+/** 在有序数据对 [x, y][] 中，按 x 列二分查找并线性插值 y */
+const interpolateFromPairs = (
+  pairs: [number, number][],
+  keyVal: number,
+  keyIndex: 0 | 1 = 0,
+  valueIndex: 0 | 1 = 1
+): string | null => {
+  if (pairs.length === 0) return null
+  const keyBig = new Big(keyVal)
+
+  // 二分查找
+  let low = 0, high = pairs.length - 1
+  while (low < high - 1) {
+    const mid = (low + high) >> 1
+    const midVal = new Big(pairs[mid][keyIndex])
+    if (midVal.eq(keyBig)) return round2(pairs[mid][valueIndex])
+    if (midVal.lt(keyBig)) low = mid; else high = mid
   }
 
+  if (low === high) return round2(pairs[low][valueIndex])
+
+  // 线性插值
+  const denom = new Big(pairs[high][keyIndex]).minus(pairs[low][keyIndex])
+  if (denom.eq(0)) return round2(pairs[low][valueIndex])
+  const t = keyBig.minus(pairs[low][keyIndex]).div(denom)
+  return new Big(pairs[low][valueIndex])
+    .plus(new Big(pairs[high][valueIndex]).minus(pairs[low][valueIndex]).times(t))
+    .toFixed(2)
+}
+
+// ──── 数据加载 ────
+
+/** 延迟加载并解析 JSON 数据到缓存 */
+export const loadExcelData = async (url: string, key: string): Promise<ExcelCache | null> => {
+  if (cache.has(key)) return cache.get(key)!
+
   try {
-    // 加载JSON文件
     const response = await fetch(url)
     const json = await response.json()
 
     const colCoords: number[] = json.colCoords || []
     const rowCoords: number[] = json.rowCoords || []
 
-    // 将普通对象转换为Map
     const data = new Map<string, number>()
     if (json.data) {
       for (const [k, v] of Object.entries(json.data)) {
@@ -42,21 +81,34 @@ export const loadExcelData = async (url: string, key: string): Promise<ExcelCach
       }
     }
 
-    const volMassData: [number, number][] = json.volMassData || []
-    const volDensityData: [number, number][] = json.volDensityData || []
+    // 过滤含 null 的无效条目和超出合理范围的离群值
+    const cleanPairs = (arr: unknown, opts?: { maxVal?: number }): [number, number][] =>
+      Array.isArray(arr)
+        ? arr.filter(
+            (d): d is [number, number] =>
+              Array.isArray(d) && d.length === 2 &&
+              typeof d[0] === 'number' && typeof d[1] === 'number' &&
+              isFinite(d[0]) && isFinite(d[1]) &&
+              d[0] >= 0 && d[1] >= 0 &&
+              (opts?.maxVal == null || (d[0] <= opts.maxVal && d[1] <= opts.maxVal))
+          )
+        : []
 
-    const result = { colCoords, rowCoords, data, volMassData, volDensityData }
+    const result: ExcelCache = {
+      colCoords,
+      rowCoords,
+      data,
+      volMassData: cleanPairs(json.volMassData, { maxVal: 100 }),
+      // volDensityData 按密度降序排序（二分查找依赖此顺序）
+      volDensityData: cleanPairs(json.volDensityData, { maxVal: 2 })
+        .sort((a, b) => b[1] - a[1]),
+    }
     cache.set(key, result)
     return result
   } catch (error) {
     console.error('加载JSON数据失败:', error)
     return null
   }
-}
-
-// 获取缓存数据
-const getExcelCache = (key: string): ExcelCache | null => {
-  return cache.get(key) || null
 }
 
 // 二分查找最近的索引
@@ -81,18 +133,13 @@ const findNearestIndex = (arr: number[], target: number): number => {
   return Math.abs(arr[low] - target) <= Math.abs(arr[high] - target) ? low : high
 }
 
-const lerp = (a: number, b: number, t: Big): string => {
-  if (!isFinite(a) || !isFinite(b)) return '0.00'
-  return new Big(a).plus(new Big(b).minus(a).times(t)).toFixed(2)
-}
-
 export const bilinearInterpolate = (
   rowVal: number,
   colVal: number
 ): string | null => {
   if (!isFinite(rowVal) || !isFinite(colVal)) return null;
 
-  const excelCache = getExcelCache('jiujing')
+  const excelCache = cache_get('jiujing')
   if (!excelCache) return null;
 
   // colCoords = 酒精计读数 (ascending [0, 0.5, 1, ..., 100])
@@ -153,73 +200,25 @@ export const bilinearInterpolate = (
   return result.toFixed(2);
 }
 
+/** 体积分数 → 质量分数 (查表插值) */
 export const getMassFromVolume = (volPct: string): string | null => {
-  if (!volPct || isNaN(Number(volPct))) return null;
-
-  const volBig = new Big(volPct);
-  const excelCache = getExcelCache('wendu')
-  if (!excelCache) return null;
-
-  const { volMassData } = excelCache
-  if (volMassData.length === 0) return null;
-
-  // 二分查找最近的体积值
-  let low = 0, high = volMassData.length - 1
-  while (low < high - 1) {
-    const mid = (low + high) >> 1
-    if (new Big(volMassData[mid][0]).eq(volBig)) return round2(volMassData[mid][1]);
-    if (new Big(volMassData[mid][0]).lt(volBig)) low = mid;
-    else high = mid;
-  }
-
-  if (low === high) return round2(volMassData[low][1]);
-
-  // 线性插值
-  const t = volBig.minus(volMassData[low][0]).div(new Big(volMassData[high][0]).minus(volMassData[low][0]))
-  return lerp(volMassData[low][1], volMassData[high][1], t);
+  if (!volPct || isNaN(Number(volPct))) return null
+  const cache = cache_get('wendu')
+  return cache ? interpolateFromPairs(cache.volMassData, Number(volPct)) : null
 }
 
-// 体积分数 → 相对密度
+/** 体积分数 → 相对密度 (查表插值) */
 export const getDensityFromVolume = (volPct: string): string | null => {
   if (!volPct || isNaN(Number(volPct))) return null
-  const volBig = new Big(volPct)
-  const cache = getExcelCache('wendu')
-  if (!cache || cache.volDensityData.length === 0) return null
-
-  const data = cache.volDensityData
-  let low = 0, high = data.length - 1
-
-  while (low < high - 1) {
-    const mid = (low + high) >> 1
-    if (new Big(data[mid][0]).eq(volBig)) return round2(data[mid][1])
-    if (new Big(data[mid][0]).lt(volBig)) low = mid; else high = mid
-  }
-
-  if (low === high) return round2(data[low][1])
-  const t = volBig.minus(data[low][0]).div(new Big(data[high][0]).minus(data[low][0]))
-  return lerp(data[low][1], data[high][1], t)
+  const cache = cache_get('wendu')
+  return cache ? interpolateFromPairs(cache.volDensityData, Number(volPct)) : null
 }
 
-// 相对密度 → 体积分数
+/** 相对密度 → 体积分数 (反向查表插值) */
 export const getVolumeFromDensity = (density: number): string | null => {
   if (!isFinite(density)) return null
-  const cache = getExcelCache('wendu')
-  if (!cache || cache.volDensityData.length === 0) return null
-
-  const data = cache.volDensityData
-  const densityBig = new Big(density)
-  let low = 0, high = data.length - 1
-
-  // 密度是降序的（浓度越高密度越低）
-  while (low < high - 1) {
-    const mid = (low + high) >> 1
-    if (new Big(data[mid][1]).eq(densityBig)) return round2(data[mid][0])
-    if (new Big(data[mid][1]).gt(densityBig)) low = mid; else high = mid
-  }
-
-  if (low === high) return round2(data[low][0])
-  const t = densityBig.minus(data[low][1]).div(new Big(data[high][1]).minus(data[low][1]))
-  return lerp(data[low][0], data[high][0], t)
+  const cache = cache_get('wendu')
+  return cache ? interpolateFromPairs(cache.volDensityData, density, 1, 0) : null
 }
 
 // 反向计算：已知标准浓度(20℃)和当前温度 → 推算酒精计读数
@@ -228,7 +227,7 @@ export const reverseInterpolate = (
   targetVol: number,
   temperature: number
 ): string | null => {
-  const cache = getExcelCache('jiujing')
+  const cache = cache_get('jiujing')
   if (!cache) return null
 
   // colCoords = 酒精计读数 (ascending [0, 0.5, 1, ..., 100])
@@ -298,7 +297,7 @@ export const estimateUncertainty = (
   temperature: number,
   deltaAlcohol: number = 0.1,
   deltaTemp: number = 0.1
-): { vol: string; mass: string | null } | null => {
+): UncertaintyResult | null => {
   const base = bilinearInterpolate(temperature, alcohol)
   if (!base) return null
 
