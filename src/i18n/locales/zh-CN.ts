@@ -13,6 +13,7 @@ export default {
     alcohol: '酒精计读数',
     temperature: '当前温度',
     targetVol: '目标标准浓度',
+    targetMass: '目标标准质量分数',
     density: '相对密度',
     volPercent: '体积分数',
     placeholder: {
@@ -30,8 +31,9 @@ export default {
     lookup: '查询'
   },
   result: {
-    standard: '校正后20℃标准浓度 (体积分数)',
+    standard: '校正后20℃标准浓度 (质量分数)',
     mass: '校正后20℃标准浓度 (质量分数)',
+    volFraction: '体积分数',
     alcoholReading: '推算酒精计读数',
     density: '相对密度 (20℃)',
     volPercent: '体积分数',
@@ -80,6 +82,7 @@ export default {
     densityLookup: '相对密度查表',
     uncertainty: '不确定度估算',
     reverseInterpolate: '反向插值查表',
+    massToVol: '质量分数转体积分数',
     searchInTable: '在酒精计-温度-标准浓度表中搜索'
   },
   language: {

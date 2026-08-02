@@ -45,9 +45,7 @@
 
 <style>
   .process-section {
-    margin-top: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    padding-top: 12px;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
     border-radius: 12px;
     overflow: hidden;
     animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -63,22 +61,21 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    color: rgba(255, 255, 255, 0.5);
+    padding: 14px 18px;
+    background: var(--surface, #141419);
+    border: none;
+    color: var(--text-secondary, #8b8b97);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition: all 0.2s ease;
     letter-spacing: 0.3px;
+    font-family: inherit;
   }
 
   .process-toggle:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.12);
-    color: rgba(255, 255, 255, 0.7);
+    background: var(--surface-hover, #25252d);
+    color: var(--text, #f0f0f5);
   }
 
   .process-toggle-icon {
@@ -92,7 +89,7 @@
   }
 
   .process-content {
-    padding: 12px 0 4px;
+    padding: 4px 14px 14px;
     animation: fadeIn 0.3s ease;
   }
 
@@ -104,34 +101,34 @@
   .process-step {
     display: flex;
     gap: 12px;
-    padding: 8px 12px;
+    padding: 10px 4px;
     position: relative;
   }
 
   .process-step:not(:last-child)::before {
     content: '';
     position: absolute;
-    left: 23px;
-    top: 32px;
-    bottom: -8px;
+    left: 11px;
+    top: 34px;
+    bottom: -6px;
     width: 1px;
-    background: rgba(102, 126, 234, 0.2);
+    background: var(--accent, #3b82f6);
+    opacity: 0.2;
   }
 
   .step-number {
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(118, 75, 162, 0.3) 100%);
-    border: 1px solid rgba(102, 126, 234, 0.3);
-    color: rgba(255, 255, 255, 0.8);
+    background: var(--accent, #3b82f6);
+    color: #ffffff;
     font-size: 11px;
     font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    font-family: 'SF Mono', 'Monaco', monospace;
+    font-family: 'JetBrains Mono', monospace;
   }
 
   .step-body {
@@ -142,32 +139,32 @@
   .step-label {
     font-size: 12px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary, #8b8b97);
     margin-bottom: 4px;
   }
 
   .step-detail {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--text-tertiary, #52525e);
     line-height: 1.5;
     word-wrap: break-word;
   }
 
   .step-formula {
-    margin-top: 4px;
+    margin-top: 6px;
     padding: 4px 8px;
-    background: rgba(102, 126, 234, 0.08);
-    border: 1px solid rgba(102, 126, 234, 0.12);
+    background: var(--accent-muted, rgba(59, 130, 246, 0.1));
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
     border-radius: 6px;
     font-size: 11px;
-    font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Inconsolata', monospace;
-    color: rgba(102, 126, 234, 0.8);
+    font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', monospace;
+    color: var(--accent, #3b82f6);
     overflow-x: auto;
   }
 
-  @media (max-width: 520px) {
+  @media (max-width: 640px) {
     .process-toggle {
-      padding: 10px 12px;
+      padding: 12px 14px;
       font-size: 11px;
     }
   }

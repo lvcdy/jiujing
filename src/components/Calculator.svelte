@@ -3,7 +3,7 @@
   import { Chart, LineController, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js'
   import {
     loadExcelData, bilinearInterpolate, getMassFromVolume,
-    getDensityFromVolume, getVolumeFromDensity,
+    getDensityFromVolume, getVolumeFromDensity, getVolumeFromMass,
     reverseInterpolate, estimateUncertainty,
   } from '../utils/data'
   import jiujingJson from '../assets/jiujing.json?url'
@@ -35,6 +35,9 @@
     (localStorage.getItem('tempUnit') as '℃' | '°F') || '℃'
   )
   let langDropdownOpen = $state(false)
+  let lightTheme = $state(
+    localStorage.getItem('theme') === 'light'
+  )
 
   // 正向计算
   let alcohol = $state('')
@@ -55,6 +58,7 @@
   // 密度互查
   let densityInput = $state('')
   let volInput = $state('')
+
   let densityVol = $state('')
   let densityMass = $state('')
   let densityDensity = $state('')
@@ -69,6 +73,7 @@
   let reverseTempEl: HTMLInputElement | undefined = $state()
   let densityInputEl: HTMLInputElement | undefined = $state()
   let volInputEl: HTMLInputElement | undefined = $state()
+
   let chartAlcoholEl: HTMLInputElement | undefined = $state()
   let canvasEl: HTMLCanvasElement | undefined = $state()
 
@@ -130,6 +135,13 @@
     if (chartInstance) { chartInstance.destroy(); chartInstance = null }
     if (!canvasEl || !chartData) return
 
+    const isLight = lightTheme
+    const tickColor = isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)'
+    const labelColor = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)'
+    const gridColor = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)'
+    const tooltipBg = isLight ? 'rgba(255,255,255,0.95)' : 'rgba(20, 20, 40, 0.9)'
+    const tooltipText = isLight ? '#1c1c22' : '#fff'
+
     chartInstance = new Chart(canvasEl, {
       type: 'line',
       data: {
@@ -137,12 +149,12 @@
         datasets: [{
           label: `${chartAlcohol}%`,
           data: chartData.values,
-          borderColor: '#667eea',
-          backgroundColor: 'rgba(102, 126, 234, 0.1)',
+          borderColor: '#3b82f6',
+          backgroundColor: isLight ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.12)',
           borderWidth: 2.5,
           pointRadius: 3,
-          pointBackgroundColor: '#667eea',
-          pointBorderColor: '#fff',
+          pointBackgroundColor: '#3b82f6',
+          pointBorderColor: isLight ? '#fff' : '#fff',
           pointBorderWidth: 1.5,
           fill: true,
           tension: 0.3,
@@ -155,22 +167,22 @@
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: 'rgba(20, 20, 40, 0.9)',
-            titleColor: '#fff', bodyColor: '#fff',
-            borderColor: 'rgba(102, 126, 234, 0.3)', borderWidth: 1,
+            backgroundColor: tooltipBg,
+            titleColor: tooltipText, bodyColor: tooltipText,
+            borderColor: isLight ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.3)', borderWidth: 1,
             cornerRadius: 8, padding: 10,
           }
         },
         scales: {
           x: {
-            title: { display: true, text: t('chart.xAxis'), color: 'rgba(255,255,255,0.5)', font: { size: 11 } },
-            ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 }, maxTicksLimit: 12 },
-            grid: { color: 'rgba(255,255,255,0.05)' },
+            title: { display: true, text: t('chart.xAxis'), color: labelColor, font: { size: 11 } },
+            ticks: { color: tickColor, font: { size: 10 }, maxTicksLimit: 12 },
+            grid: { color: gridColor },
           },
           y: {
-            title: { display: true, text: t('chart.yAxis'), color: 'rgba(255,255,255,0.5)', font: { size: 11 } },
-            ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 } },
-            grid: { color: 'rgba(255,255,255,0.05)' },
+            title: { display: true, text: t('chart.yAxis'), color: labelColor, font: { size: 11 } },
+            ticks: { color: tickColor, font: { size: 10 } },
+            grid: { color: gridColor },
           }
         }
       }
@@ -300,14 +312,24 @@
       })
     }
 
+    // Step 2.5: 质量分数 → 体积分数转换
+    const volFromMass = getVolumeFromMass(targetVol)
+    if (!volFromMass) { error = t('error.failed'); return }
+    steps.push({
+      step: stepNum++,
+      label: t('process.massToVol'),
+      detail: `质量分数 ${targetVol}% m → 体积分数 ${volFromMass}% vol`,
+      formula: `V = mass_to_vol(m=${targetVol}%) = ${volFromMass}% vol`
+    })
+
     // Step 3: 反向插值
-    const r = reverseInterpolate(Number(targetVol), tempC)
+    const r = reverseInterpolate(Number(volFromMass), tempC)
     if (r === null) { error = t('error.failed'); return }
     steps.push({
       step: stepNum++,
       label: t('process.reverseInterpolate'),
       detail: `${t('process.searchInTable')} → ${t('result.alcoholReading')}: ${r}%`,
-      formula: `A = reverse_lookup(V=${targetVol}%, T=${tempC.toFixed(1)}℃) = ${r}`
+      formula: `A = reverse_lookup(V=${volFromMass}%, T=${tempC.toFixed(1)}℃) = ${r}`
     })
 
     reverseResult = r
@@ -433,219 +455,328 @@
   const tempLabel = $derived(tempUnit === '℃' ? t('unit.celsius') : t('unit.fahrenheit'))
 </script>
 
-<div class="calculator">
-  <div class="glass-card">
-    {#if loading}
-      <div class="loading-overlay">
-        <div class="loading-spinner"></div>
-        <span class="loading-text">{t('button.loading')}</span>
+<div class="calculator" class:light={lightTheme}>
+  {#if loading}
+    <div class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <span>{t('button.loading')}</span>
+    </div>
+  {:else}
+  <div class="app-shell">
+
+    <!-- ═══ Top Bar ═══ -->
+    <div class="top-bar">
+      <div class="top-bar-brand">
+        <span class="brand-icon">🧪</span>
+        <h1>{t('app.title')}</h1>
       </div>
-    {/if}
-
-    <header class="card-header">
-      <div class="header-content">
-        <div class="logo">
-          <span class="icon">🧪</span>
-          <h1>{t('app.title')}</h1>
-        </div>
-        <div class="header-controls">
-          <button class="temp-unit-btn" onclick={toggleTempUnit} title="切换单位">{tempUnit}</button>
-          <div class="language-dropdown" class:open={langDropdownOpen}>
-            <button class="language-btn" onclick={() => langDropdownOpen = !langDropdownOpen}
-              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); langDropdownOpen = !langDropdownOpen } }}
-              aria-expanded={langDropdownOpen} aria-haspopup="true">
-              {lang === 'zh-CN' ? '中文' : 'English'}
-              <span class="dropdown-arrow">▼</span>
-            </button>
-            <div class="dropdown-menu">
-              <button class="dropdown-item" class:active={lang === 'zh-CN'}
-                onclick={() => changeLanguage('zh-CN')}
-                onkeydown={(e) => { if (e.key === 'Enter') changeLanguage('zh-CN') }}>中文</button>
-              <button class="dropdown-item" class:active={lang === 'en-US'}
-                onclick={() => changeLanguage('en-US')}
-                onkeydown={(e) => { if (e.key === 'Enter') changeLanguage('en-US') }}>English</button>
-            </div>
+      <div class="top-bar-controls">
+        <button class="ctrl-btn temp-unit" onclick={toggleTempUnit} title="切换单位">{tempUnit}</button>
+        <div class="language-dropdown" class:open={langDropdownOpen}>
+          <button class="ctrl-btn" onclick={() => langDropdownOpen = !langDropdownOpen}
+            onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); langDropdownOpen = !langDropdownOpen } }}
+            aria-expanded={langDropdownOpen} aria-haspopup="true">
+            {lang === 'zh-CN' ? '中文' : 'English'}
+            <span class="dropdown-arrow">▾</span>
+          </button>
+          <div class="dropdown-menu">
+            <button class="dropdown-item" class:active={lang === 'zh-CN'}
+              onclick={() => changeLanguage('zh-CN')}
+              onkeydown={(e) => { if (e.key === 'Enter') changeLanguage('zh-CN') }}>中文</button>
+            <button class="dropdown-item" class:active={lang === 'en-US'}
+              onclick={() => changeLanguage('en-US')}
+              onkeydown={(e) => { if (e.key === 'Enter') changeLanguage('en-US') }}>English</button>
           </div>
         </div>
+        <button class="ctrl-btn icon-btn" onclick={() => { lightTheme = !lightTheme; localStorage.setItem('theme', lightTheme ? 'light' : 'dark') }} title="Toggle theme">
+          {lightTheme ? '🌙' : '☀'}
+        </button>
       </div>
-      <p class="subtitle">{t('app.subtitle')}</p>
-    </header>
+    </div>
 
-    <nav class="tab-nav">
-      {#each ['forward', 'reverse', 'density', 'chart'] as tab}
-        <button class="tab-btn" class:active={activeTab === tab}
-          onclick={() => { activeTab = tab as Tab; error = '' }}>{t(`tab.${tab}`)}</button>
-      {/each}
-    </nav>
+    <!-- ═══ Segmented Control ═══ -->
+    <div class="seg-control-wrap">
+      <div class="seg-control">
+        {#each [
+          { id: 'forward', icon: '📊', label: t('tab.forward') },
+          { id: 'reverse', icon: '🔄', label: t('tab.reverse') },
+          { id: 'density', icon: '📐', label: t('tab.density') },
+          { id: 'chart',   icon: '📈', label: t('tab.chart') },
+        ] as tab}
+          <button class="seg-tab" class:active={activeTab === tab.id}
+            onclick={() => { activeTab = tab.id as Tab; error = '' }}>
+            <span class="tab-icon">{tab.icon}</span>
+            {tab.label}
+          </button>
+        {/each}
+      </div>
+    </div>
 
-    <div class="card-body">
-      <!-- 正向计算 -->
-      {#if activeTab === 'forward'}
-        <div class="input-grid">
-          <div class="input-field">
-            <label for="alcohol-input">{t('input.alcohol')}</label>
-            <div class="input-wrapper">
-              <input id="alcohol-input" bind:this={alcoholInputEl} type="text" inputmode="decimal" value={alcohol}
-                oninput={(e) => handleInput(e.currentTarget.value, v => alcohol = v)}
-                onkeydown={(e) => handleKeyDown(e, 'alcohol')}
-                placeholder={t('input.placeholder.alcohol')} disabled={loading} />
-              <span class="unit">%</span>
+    <!-- ═══ Content Area ═══ -->
+    <div class="content-area">
+
+      <!-- ─── Left Panel: Input ─── -->
+      <div class="panel">
+        {#if activeTab === 'forward'}
+          <div class="card">
+            <h2 class="card-title">输入参数</h2>
+            <div class="input-field">
+              <label for="alcohol-input">{t('input.alcohol')}</label>
+              <div class="input-box" class:has-error={!!error}>
+                <input id="alcohol-input" bind:this={alcoholInputEl} type="text" inputmode="decimal" value={alcohol}
+                  oninput={(e) => handleInput(e.currentTarget.value, v => alcohol = v)}
+                  onkeydown={(e) => handleKeyDown(e, 'alcohol')}
+                  placeholder="输入读数…" disabled={loading} />
+                <span class="input-unit">%</span>
+              </div>
+            </div>
+            <div class="input-field">
+              <label for="temperature-input">{t('input.temperature')}</label>
+              <div class="input-box">
+                <input id="temperature-input" bind:this={temperatureInputEl} type="text" inputmode="decimal" value={temperature}
+                  oninput={(e) => handleInput(e.currentTarget.value, v => temperature = v)}
+                  onkeydown={(e) => handleKeyDown(e, 'temperature')}
+                  placeholder="输入温度…" disabled={loading} />
+                <span class="input-unit">{tempLabel}</span>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn-primary" onclick={calculate} disabled={loading || !alcohol || !temperature}>{t('button.calculate')}</button>
+              <button class="btn-secondary" onclick={clearAll} disabled={loading}>{t('button.clear')}</button>
+            </div>
+            {#if error}
+              <div class="error-toast"><span>⚠️</span>{error}</div>
+            {/if}
+          </div>
+
+        {:else if activeTab === 'reverse'}
+          <div class="card">
+            <h2 class="card-title">输入参数</h2>
+            <div class="input-field">
+              <label for="target-vol-input">{t('input.targetMass')}</label>
+              <div class="input-box">
+                <input id="target-vol-input" bind:this={targetVolEl} type="text" inputmode="decimal" value={targetVol}
+                  oninput={(e) => handleInput(e.currentTarget.value, v => targetVol = v)}
+                  onkeydown={(e) => handleKeyDown(e, 'targetVol')}
+                  placeholder={t('input.placeholder.targetVol')} disabled={loading} />
+                <span class="input-unit">% m</span>
+              </div>
+            </div>
+            <div class="input-field">
+              <label for="reverse-temp-input">{t('input.temperature')}</label>
+              <div class="input-box">
+                <input id="reverse-temp-input" bind:this={reverseTempEl} type="text" inputmode="decimal" value={reverseTemp}
+                  oninput={(e) => handleInput(e.currentTarget.value, v => reverseTemp = v)}
+                  onkeydown={(e) => handleKeyDown(e, 'reverseTemp')}
+                  placeholder={t('input.placeholder.temperature')} disabled={loading} />
+                <span class="input-unit">{tempLabel}</span>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn-primary" onclick={doReverse} disabled={loading || !targetVol || !reverseTemp}>{t('button.calculate')}</button>
+              <button class="btn-secondary" onclick={clearAll} disabled={loading}>{t('button.clear')}</button>
+            </div>
+            {#if error}
+              <div class="error-toast"><span>⚠️</span>{error}</div>
+            {/if}
+          </div>
+
+        {:else if activeTab === 'density'}
+          <div class="card">
+            <h2 class="card-title">密度 → 酒精度查表</h2>
+            <div class="input-field">
+              <label for="density-input">{t('input.density')}</label>
+              <div class="input-box">
+                <input id="density-input" bind:this={densityInputEl} type="text" inputmode="decimal" value={densityInput}
+                  oninput={(e) => handleInput(e.currentTarget.value, v => densityInput = v)}
+                  onkeydown={(e) => handleKeyDown(e, 'densityInput')}
+                  placeholder="输入密度…" disabled={loading} />
+                <span class="input-unit">g/cm³</span>
+              </div>
+            </div>
+            <div class="divider-text">—— OR ——</div>
+            <div class="input-field">
+              <label for="vol-input">{t('input.volPercent')}</label>
+              <div class="input-box">
+                <input id="vol-input" bind:this={volInputEl} type="text" inputmode="decimal" value={volInput}
+                  oninput={(e) => handleInput(e.currentTarget.value, v => volInput = v)}
+                  onkeydown={(e) => handleKeyDown(e, 'volInput')}
+                  placeholder={t('input.placeholder.alcohol')} disabled={loading} />
+                <span class="input-unit">% vol</span>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn-primary" onclick={doDensityLookup} disabled={loading || (!densityInput && !volInput)}>{t('button.lookup')}</button>
+              <button class="btn-secondary" onclick={clearAll} disabled={loading}>{t('button.clear')}</button>
+            </div>
+            {#if error}
+              <div class="error-toast"><span>⚠️</span>{error}</div>
+            {/if}
+          </div>
+
+        {:else if activeTab === 'chart'}
+          <div class="card">
+            <h2 class="card-title">图表设置</h2>
+            <div class="input-field">
+              <label for="chart-alcohol-input">{t('chart.alcoholFixed')}</label>
+              <div class="input-box">
+                <input id="chart-alcohol-input" bind:this={chartAlcoholEl} type="text" inputmode="decimal" value={chartAlcohol}
+                  oninput={(e) => handleInput(e.currentTarget.value, v => chartAlcohol = v)}
+                  onkeydown={(e) => handleKeyDown(e, 'chartAlcohol')}
+                  placeholder={t('input.placeholder.alcohol')} disabled={loading} />
+                <span class="input-unit">%</span>
+              </div>
             </div>
           </div>
-          <div class="input-field">
-            <label for="temperature-input">{t('input.temperature')}</label>
-            <div class="input-wrapper">
-              <input id="temperature-input" bind:this={temperatureInputEl} type="text" inputmode="decimal" value={temperature}
-                oninput={(e) => handleInput(e.currentTarget.value, v => temperature = v)}
-                onkeydown={(e) => handleKeyDown(e, 'temperature')}
-                placeholder={t('input.placeholder.temperature')} disabled={loading} />
-              <span class="unit">{tempLabel}</span>
-            </div>
-          </div>
-        </div>
-        <div class="button-group">
-          <button class="calculate-btn" onclick={calculate} disabled={loading || !alcohol || !temperature}>{t('button.calculate')}</button>
-          <button class="clear-btn" onclick={clearAll} disabled={loading}>{t('button.clear')}</button>
-        </div>
-        {#if error}
-          <div class="error-toast"><span>⚠️</span>{error}</div>
         {/if}
-        {#if forwardVol}
-          <div class="results">
-            <ResultCard label={t('result.standard')} value="{forwardVol}{t('result.unit.vol')}" variant="primary" />
-            {#if forwardMass}
-              <ResultCard label={t('result.mass')} value="{forwardMass}{t('result.unit.mass')}" />
-            {/if}
-            {#if forwardDensity}
-              <ResultCard label={t('result.density')} value="{forwardDensity}{t('result.unit.density')}" />
-            {/if}
-            {#if forwardUncVol}
-              <div class="uncertainty-section">
-                <div class="uncertainty-title">{t('uncertainty.title')}</div>
-                <ResultCard label={t('uncertainty.volResult')} value="±{forwardUncVol}{t('result.unit.vol')}" />
-                {#if forwardUncMass}
-                  <ResultCard label={t('uncertainty.massResult')} value="±{forwardUncMass}{t('result.unit.mass')}" />
+      </div>
+
+      <!-- ─── Right Panel: Result ─── -->
+      <div class="panel">
+
+        {#if activeTab === 'forward'}
+          {#if forwardVol}
+            <div class="card">
+              <div class="result-meta">
+                <span class="meta-label">{t('result.standard')}</span>
+                <span class="meta-badge">✓ 计算完成</span>
+              </div>
+              <div class="result-hero">
+                <span class="hero-number">{forwardMass.split('.')[0]}</span>
+                <span class="hero-unit">{t('result.unit.mass')}</span>
+              </div>
+              <div class="card-divider"></div>
+              <div class="secondary-results">
+                <div class="sec-row">
+                  <span class="sec-label">{t('result.volFraction')}</span>
+                  <span class="sec-value">{forwardVol}{t('result.unit.vol')}</span>
+                </div>
+                {#if forwardDensity}
+                  <div class="sec-row">
+                    <span class="sec-label">{t('result.density')}</span>
+                    <span class="sec-value">{forwardDensity}{t('result.unit.density')}</span>
+                  </div>
                 {/if}
-                <div class="uncertainty-hint">{t('uncertainty.hint')}</div>
+                {#if forwardUncMass}
+                  <div class="sec-row">
+                    <span class="sec-label">{t('uncertainty.massResult')}</span>
+                    <span class="sec-value">±{forwardUncMass}{t('result.unit.mass')}</span>
+                  </div>
+                {/if}
+                {#if forwardUncVol}
+                  <div class="sec-row">
+                    <span class="sec-label">{t('uncertainty.volResult')}</span>
+                    <span class="sec-value">±{forwardUncVol}{t('result.unit.vol')}</span>
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {:else}
+            <div class="card">
+              <div class="empty-state">
+                <div class="empty-icon">🧪</div>
+                <div class="empty-title">输入参数开始计算</div>
+                <div class="empty-hint">输入酒精计读数和温度，点击计算按钮获取标准酒精度</div>
+              </div>
+            </div>
+          {/if}
+          <ProcessSteps steps={forwardProcess} />
+          <div class="keyboard-hints">{t('keyboard.hints')}</div>
+
+        {:else if activeTab === 'reverse'}
+          {#if reverseResult}
+            <div class="card">
+              <div class="result-meta">
+                <span class="meta-label">{t('result.alcoholReading')}</span>
+                <span class="meta-badge">✓ 计算完成</span>
+              </div>
+              <div class="result-hero">
+                <span class="hero-number">{reverseResult}</span>
+                <span class="hero-unit">%</span>
+              </div>
+              <div class="card-divider"></div>
+              <div class="secondary-results">
+                <div class="sec-row">
+                  <span class="sec-label">目标质量分数</span>
+                  <span class="sec-value">{targetVol}% m</span>
+                </div>
+                <div class="sec-row">
+                  <span class="sec-label">参考温度</span>
+                  <span class="sec-value">{reverseTemp}{tempUnit}</span>
+                </div>
+              </div>
+            </div>
+          {:else}
+            <div class="card">
+              <div class="empty-state">
+                <div class="empty-icon">🔄</div>
+                <div class="empty-title">输入目标质量分数</div>
+                <div class="empty-hint">输入需要的标准质量分数和当前温度，获取酒精计应有读数</div>
+              </div>
+            </div>
+          {/if}
+          <ProcessSteps steps={reverseProcess} />
+          <div class="keyboard-hints">{t('keyboard.hints')}</div>
+
+        {:else if activeTab === 'density'}
+          {#if densityVol}
+            <div class="card">
+              <div class="result-meta">
+                <span class="meta-label">{t('result.massPercent')}</span>
+                <span class="meta-badge">✓ 查表完成</span>
+              </div>
+              <div class="result-hero">
+                <span class="hero-number">{densityMass}</span>
+                <span class="hero-unit">%</span>
+              </div>
+              <div class="card-divider"></div>
+              <div class="secondary-results">
+                <div class="sec-row">
+                  <span class="sec-label">体积分数</span>
+                  <span class="sec-value">{densityVol}% vol</span>
+                </div>
+                {#if densityDensity}
+                  <div class="sec-row">
+                    <span class="sec-label">精确密度值</span>
+                    <span class="sec-value">{densityDensity} g/cm³</span>
+                  </div>
+                {/if}
+                <div class="sec-row">
+                  <span class="sec-label">参考温度</span>
+                  <span class="sec-value">20℃</span>
+                </div>
+              </div>
+            </div>
+          {:else}
+            <div class="card">
+              <div class="empty-state">
+                <div class="empty-icon">📐</div>
+                <div class="empty-title">密度查表</div>
+                <div class="empty-hint">输入溶液密度或酒精度，查表获取对应数值</div>
+              </div>
+            </div>
+          {/if}
+          <div class="keyboard-hints">{t('keyboard.hints')}</div>
+
+        {:else if activeTab === 'chart'}
+          <div class="card">
+            {#if chartData}
+              <div class="chart-container">
+                <canvas bind:this={canvasEl}></canvas>
+              </div>
+            {:else}
+              <div class="empty-state">
+                <div class="empty-icon">📈</div>
+                <div class="empty-title">浓度曲线图</div>
+                <div class="empty-hint">输入酒精度后自动生成温度-浓度关系曲线</div>
               </div>
             {/if}
           </div>
-        {/if}
-        <ProcessSteps steps={forwardProcess} />
-        <div class="keyboard-hints">{t('keyboard.hints')}</div>
-      {/if}
+          <div class="keyboard-hints">{t('keyboard.hints')}</div>
 
-      <!-- 反向计算 -->
-      {#if activeTab === 'reverse'}
-        <div class="input-grid">
-          <div class="input-field">
-            <label for="target-vol-input">{t('input.targetVol')}</label>
-            <div class="input-wrapper">
-              <input id="target-vol-input" bind:this={targetVolEl} type="text" inputmode="decimal" value={targetVol}
-                oninput={(e) => handleInput(e.currentTarget.value, v => targetVol = v)}
-                onkeydown={(e) => handleKeyDown(e, 'targetVol')}
-                placeholder={t('input.placeholder.targetVol')} disabled={loading} />
-              <span class="unit">% vol</span>
-            </div>
-          </div>
-          <div class="input-field">
-            <label for="reverse-temp-input">{t('input.temperature')}</label>
-            <div class="input-wrapper">
-              <input id="reverse-temp-input" bind:this={reverseTempEl} type="text" inputmode="decimal" value={reverseTemp}
-                oninput={(e) => handleInput(e.currentTarget.value, v => reverseTemp = v)}
-                onkeydown={(e) => handleKeyDown(e, 'reverseTemp')}
-                placeholder={t('input.placeholder.temperature')} disabled={loading} />
-              <span class="unit">{tempLabel}</span>
-            </div>
-          </div>
-        </div>
-        <div class="button-group">
-          <button class="calculate-btn" onclick={doReverse} disabled={loading || !targetVol || !reverseTemp}>{t('button.calculate')}</button>
-          <button class="clear-btn" onclick={clearAll} disabled={loading}>{t('button.clear')}</button>
-        </div>
-        {#if error}
-          <div class="error-toast"><span>⚠️</span>{error}</div>
         {/if}
-        {#if reverseResult}
-          <div class="results">
-            <ResultCard label={t('result.alcoholReading')} value="{reverseResult}%" variant="primary" />
-          </div>
-        {/if}
-        <ProcessSteps steps={reverseProcess} />
-        <div class="keyboard-hints">{t('keyboard.hints')}</div>
-      {/if}
-
-      <!-- 密度互查 -->
-      {#if activeTab === 'density'}
-        <div class="input-grid single">
-          <div class="input-field">
-            <label for="density-input">{t('input.density')}</label>
-            <div class="input-wrapper">
-              <input id="density-input" bind:this={densityInputEl} type="text" inputmode="decimal" value={densityInput}
-                oninput={(e) => handleInput(e.currentTarget.value, v => densityInput = v)}
-                onkeydown={(e) => handleKeyDown(e, 'densityInput')}
-                placeholder={t('input.placeholder.density')} disabled={loading} />
-              <span class="unit">g/cm³</span>
-            </div>
-          </div>
-        </div>
-        <div class="divider-text">—</div>
-        <div class="input-grid single">
-          <div class="input-field">
-            <label for="vol-input">{t('input.volPercent')}</label>
-            <div class="input-wrapper">
-              <input id="vol-input" bind:this={volInputEl} type="text" inputmode="decimal" value={volInput}
-                oninput={(e) => handleInput(e.currentTarget.value, v => volInput = v)}
-                onkeydown={(e) => handleKeyDown(e, 'volInput')}
-                placeholder={t('input.placeholder.alcohol')} disabled={loading} />
-              <span class="unit">% vol</span>
-            </div>
-          </div>
-        </div>
-        <div class="button-group">
-          <button class="calculate-btn" onclick={doDensityLookup} disabled={loading || (!densityInput && !volInput)}>{t('button.lookup')}</button>
-          <button class="clear-btn" onclick={clearAll} disabled={loading}>{t('button.clear')}</button>
-        </div>
-        {#if error}
-          <div class="error-toast"><span>⚠️</span>{error}</div>
-        {/if}
-        {#if densityVol}
-          <div class="results">
-            <ResultCard label={t('result.volPercent')} value="{densityVol}% vol" />
-            {#if densityMass}
-              <ResultCard label={t('result.massPercent')} value="{densityMass}% m" />
-            {/if}
-            {#if densityDensity}
-              <ResultCard label={t('result.density')} value="{densityDensity}{t('result.unit.density')}" />
-            {/if}
-          </div>
-        {/if}
-        <div class="keyboard-hints">{t('keyboard.hints')}</div>
-      {/if}
-
-      <!-- 图表 -->
-      {#if activeTab === 'chart'}
-        <div class="input-grid single">
-          <div class="input-field">
-            <label for="chart-alcohol-input">{t('chart.alcoholFixed')}</label>
-            <div class="input-wrapper">
-              <input id="chart-alcohol-input" bind:this={chartAlcoholEl} type="text" inputmode="decimal" value={chartAlcohol}
-                oninput={(e) => handleInput(e.currentTarget.value, v => chartAlcohol = v)}
-                onkeydown={(e) => handleKeyDown(e, 'chartAlcohol')}
-                placeholder={t('input.placeholder.alcohol')} disabled={loading} />
-              <span class="unit">%</span>
-            </div>
-          </div>
-        </div>
-        {#if chartData}
-          <div class="chart-container">
-            <canvas bind:this={canvasEl}></canvas>
-          </div>
-        {:else}
-          <div class="chart-placeholder">📊 {t('chart.alcoholFixed')}</div>
-        {/if}
-        <div class="keyboard-hints">{t('keyboard.hints')}</div>
-      {/if}
+      </div>
     </div>
   </div>
+  {/if}
 </div>

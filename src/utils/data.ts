@@ -207,6 +207,13 @@ export const getMassFromVolume = (volPct: string): string | null => {
   return cache ? interpolateFromPairs(cache.volMassData, Number(volPct)) : null
 }
 
+/** 质量分数 → 体积分数 (查表插值) */
+export const getVolumeFromMass = (massPct: string): string | null => {
+  if (!massPct || isNaN(Number(massPct))) return null
+  const cache = cache_get('wendu')
+  return cache ? interpolateFromPairs(cache.volMassData, Number(massPct), 1, 0) : null
+}
+
 /** 体积分数 → 相对密度 (查表插值) */
 export const getDensityFromVolume = (volPct: string): string | null => {
   if (!volPct || isNaN(Number(volPct))) return null

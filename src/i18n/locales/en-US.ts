@@ -13,6 +13,7 @@ export default {
     alcohol: 'Alcohol Meter Reading',
     temperature: 'Current Temperature',
     targetVol: 'Target Standard Concentration',
+    targetMass: 'Target Standard Mass Fraction',
     density: 'Relative Density',
     volPercent: 'Volume Percent',
     placeholder: {
@@ -30,8 +31,9 @@ export default {
     lookup: 'Lookup'
   },
   result: {
-    standard: 'Corrected 20℃ Standard (Volume)',
+    standard: 'Corrected 20℃ Standard (Mass Fraction)',
     mass: 'Corrected 20℃ Standard (Mass)',
+    volFraction: 'Volume Fraction',
     alcoholReading: 'Estimated Alcohol Meter Reading',
     density: 'Relative Density (20℃)',
     volPercent: 'Volume Percent',
@@ -80,6 +82,7 @@ export default {
     densityLookup: 'Relative Density Lookup',
     uncertainty: 'Uncertainty Estimation',
     reverseInterpolate: 'Reverse Interpolation Lookup',
+    massToVol: 'Mass Fraction to Volume Fraction',
     searchInTable: 'Search in alcohol-temperature-standard concentration table'
   },
   language: {
