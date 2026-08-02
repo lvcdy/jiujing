@@ -61,7 +61,8 @@ src/
 └── utils/
     └── data.ts              # 数据加载与插值计算核心
 src-tauri/                   # Tauri 桌面端配置与 Rust 代码
-excel/                       # 原始 Excel 数据文件（仅供参考）
+data/                        # 原始 Excel 数据文件（仅供参考）
+designs/                     # 设计原型文件（.pen）
 ```
 
 ---

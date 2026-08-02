@@ -630,23 +630,9 @@
   letter-spacing: 2px;
 }
 
-/* ═══════════════════════════════
-   Legacy Classes (backward compat)
-   ═══════════════════════════════ */
-.glass-card { /* no-op */ }
-.card-header { /* no-op */ }
-.header-content { /* no-op */ }
-.logo { /* no-op */ }
-.icon { /* no-op */ }
-.subtitle { /* no-op */ }
-
 .language-dropdown {
   position: relative;
   z-index: 100;
-}
-
-.language-btn {
-  display: none; /* hidden; using ctrl-btn instead */
 }
 
 .language-dropdown.open .dropdown-arrow {
@@ -709,73 +695,6 @@
   background: var(--accent-muted);
   color: var(--accent);
   font-weight: 600;
-}
-
-.tab-nav { /* no-op */ }
-.tab-btn { /* no-op */ }
-
-.input-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.input-grid.single { /* single input */ }
-
-.results {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.uncertainty-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 8px;
-}
-
-.uncertainty-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
-}
-
-.uncertainty-hint {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  line-height: 1.5;
-  padding-top: 4px;
-}
-
-.temp-unit-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 32px;
-  width: fit-content;
-  padding: 0 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  color: var(--text);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.temp-unit-btn:hover {
-  background: var(--surface-hover);
 }
 
 /* ═══════════════════════════════
@@ -914,47 +833,6 @@
   margin: 0 1px;
 }
 
-/* 加载遮罩 */
-.loading-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: rgba(10, 10, 26, 0.6);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  border-radius: 24px;
-  z-index: 10;
-  animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #667eea;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 12px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.loading-text {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 13px;
-  font-weight: 500;
-}
-
 /* 响应式 */
 @media (max-width: 520px) {
   .calculator {
@@ -962,47 +840,6 @@
     align-items: flex-start;
     padding-top: max(12px, env(safe-area-inset-top));
     padding-bottom: max(12px, env(safe-area-inset-bottom));
-  }
-
-  .glass-card {
-    border-radius: 20px;
-    max-width: 100%;
-  }
-
-  .card-header {
-    padding: 28px 20px 22px;
-    border-radius: 20px 20px 0 0;
-  }
-
-  .card-header::before {
-    clip-path: inset(0 0 0 0 round 20px 20px 0 0);
-  }
-
-  .card-header h1 {
-    font-size: 19px;
-  }
-
-  .icon {
-    font-size: 32px;
-  }
-
-  .tab-nav {
-    padding: 0 16px;
-  }
-
-  .tab-btn {
-    padding: 12px 6px;
-    font-size: 12px;
-  }
-
-  .card-body {
-    padding: 20px 20px 24px;
-    border-radius: 0 0 20px 20px;
-  }
-
-  .input-grid {
-    grid-template-columns: 1fr;
-    gap: 14px;
   }
 
   .input-wrapper input {
@@ -1039,168 +876,9 @@
     height: 160px;
   }
 
-  .uncertainty-section {
-    padding: 12px;
-  }
-
-  .keyboard-hints {
-    display: none;
-  }
-
-  .loading-overlay {
-    border-radius: 20px;
-  }
-
-  .chart-container {
-    height: 220px;
-    padding: 8px;
-    margin: 12px 0;
-  }
-
   .chart-placeholder {
     height: 160px;
   }
-}
-
-@media (max-width: 360px) {
-  .calculator {
-    padding: 8px;
-  }
-
-  .card-header {
-    padding: 24px 16px 18px;
-  }
-
-  .card-body {
-    padding: 16px 16px 20px;
-  }
-
-  .card-header h1 {
-    font-size: 17px;
-  }
-}
-
-/* 键盘导航焦点 */
-.calculate-btn:focus-visible,
-.clear-btn:focus-visible,
-.language-btn:focus-visible,
-.tab-btn:focus-visible,
-.temp-unit-btn:focus-visible {
-  outline: 2px solid rgba(102, 126, 234, 0.6);
-  outline-offset: 2px;
-}
-
-/* 头部控制区 */
-.header-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-/* 温度单位切换 */
-.temp-unit-btn {
-  padding: 8px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.08);
-  color: white;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  white-space: nowrap;
-  font-family: 'SF Mono', 'Monaco', monospace;
-}
-
-.temp-unit-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-.temp-unit-btn:active {
-  transform: scale(0.96);
-}
-
-/* Tab 导航 */
-.tab-nav {
-  display: flex;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0 32px;
-  gap: 2px;
-  overflow-x: auto;
-}
-
-.tab-btn {
-  flex: 1;
-  padding: 14px 8px;
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  position: relative;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.tab-btn::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  width: 0;
-  height: 2px;
-  background: linear-gradient(90deg, #667eea, #764ba2);
-  border-radius: 1px;
-  transition: all 0.25s ease;
-  transform: translateX(-50%);
-}
-
-.tab-btn:hover {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.tab-btn.active {
-  color: white;
-}
-
-.tab-btn.active::after {
-  width: 60%;
-}
-
-/* 单列输入网格 */
-.input-grid.single {
-  grid-template-columns: 1fr;
-}
-
-/* 不确定度区域 */
-.uncertainty-section {
-  margin-top: 12px;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
-}
-
-.uncertainty-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.4);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 10px;
-}
-
-.uncertainty-hint {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.25);
-  margin-top: 8px;
-  text-align: center;
 }
 
 /* 图表容器 */

@@ -93,6 +93,11 @@ export default {
     zh: '中文',
     en: 'English'
   },
+  theme: {
+    auto: '自动（跟随系统）',
+    light: '浅色模式',
+    dark: '深色模式'
+  },
   yield: {
     title: '产率计算',
     rawMass: '原料质量',

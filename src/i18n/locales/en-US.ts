@@ -93,6 +93,11 @@ export default {
     zh: '中文',
     en: 'English'
   },
+  theme: {
+    auto: 'Auto (follow system)',
+    light: 'Light mode',
+    dark: 'Dark mode'
+  },
   yield: {
     title: 'Yield Calculation',
     rawMass: 'Raw Material Mass',

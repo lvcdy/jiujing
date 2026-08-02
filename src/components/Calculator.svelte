@@ -35,8 +35,15 @@
     (localStorage.getItem('tempUnit') as '℃' | '°F') || '℃'
   )
   let langDropdownOpen = $state(false)
-  let lightTheme = $state(
-    localStorage.getItem('theme') === 'light'
+  type ThemeMode = 'auto' | 'light' | 'dark'
+  let themeMode = $state<ThemeMode>(
+    (localStorage.getItem('themeMode') as ThemeMode) || 'auto'
+  )
+  let systemDark = $state(
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  )
+  const isDark = $derived(
+    themeMode === 'auto' ? systemDark : themeMode === 'dark'
   )
 
   // 正向计算
@@ -110,6 +117,41 @@
     return { labels, values }
   })
 
+  // 同步 <meta name="color-scheme"> 到文档
+  function applyColorScheme() {
+    const meta = document.querySelector('meta[name="color-scheme"]') || (() => {
+      const m = document.createElement('meta')
+      m.name = 'color-scheme'
+      document.head.appendChild(m)
+      return m
+    })()
+    meta.content = isDark ? 'dark' : 'light'
+  }
+
+  function cycleTheme() {
+    const cycle: ThemeMode[] = ['auto', 'light', 'dark']
+    themeMode = cycle[(cycle.indexOf(themeMode) + 1) % 3]
+    localStorage.setItem('themeMode', themeMode)
+    applyColorScheme()
+  }
+
+  const themeIcon = $derived(
+    themeMode === 'auto' ? '🌓' : isDark ? '🌙' : '☀'
+  )
+  const themeLabel = $derived(
+    themeMode === 'auto' ? t('theme.auto') : isDark ? t('theme.dark') : t('theme.light')
+  )
+
+  // 点击外部关闭语言下拉
+  function handleDocumentClick(e: MouseEvent) {
+    if (langDropdownOpen) {
+      const target = e.target as HTMLElement
+      if (!target.closest('.language-dropdown')) {
+        langDropdownOpen = false
+      }
+    }
+  }
+
   // 加载数据 & 全局事件
   onMount(() => {
     Promise.all([loadExcelData(jiujingJson, 'jiujing'), loadExcelData(wenduJson, 'wendu')])
@@ -124,21 +166,21 @@
 
     window.addEventListener('keydown', handleGlobalKeyDown)
     document.addEventListener('click', handleDocumentClick)
+
+    // 监听系统主题偏好变化
+    const mql = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleSystemTheme = (e: MediaQueryListEvent) => { systemDark = e.matches }
+    mql.addEventListener('change', handleSystemTheme)
+
+    // 同步 <meta color-scheme>
+    applyColorScheme()
+
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown)
       document.removeEventListener('click', handleDocumentClick)
+      mql.removeEventListener('change', handleSystemTheme)
     }
   })
-
-  // 点击外部关闭语言下拉
-  function handleDocumentClick(e: MouseEvent) {
-    if (langDropdownOpen) {
-      const target = e.target as HTMLElement
-      if (!target.closest('.language-dropdown')) {
-        langDropdownOpen = false
-      }
-    }
-  }
 
   // 图表效果
   $effect(() => {
@@ -147,7 +189,7 @@
     if (chartInstance) { chartInstance.destroy(); chartInstance = null }
     if (!canvasEl || !chartData) return
 
-    const isLight = lightTheme
+    const isLight = !isDark
     const tickColor = isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)'
     const labelColor = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)'
     const gridColor = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)'
@@ -509,7 +551,7 @@
   const tempLabel = $derived(tempUnit === '℃' ? t('unit.celsius') : t('unit.fahrenheit'))
 </script>
 
-<div class="calculator" class:light={lightTheme}>
+<div class="calculator" class:light={!isDark}>
   {#if loading}
     <div class="loading-overlay">
       <div class="loading-spinner"></div>
@@ -542,8 +584,8 @@
               onkeydown={(e) => { if (e.key === 'Enter') changeLanguage('en-US') }}>English</button>
           </div>
         </div>
-        <button class="ctrl-btn icon-btn" onclick={() => { lightTheme = !lightTheme; localStorage.setItem('theme', lightTheme ? 'light' : 'dark') }} title="Toggle theme">
-          {lightTheme ? '🌙' : '☀'}
+        <button class="ctrl-btn icon-btn" onclick={cycleTheme} title={themeLabel}>
+          {themeIcon}
         </button>
       </div>
     </div>
