@@ -7,6 +7,7 @@ export default {
     forward: '正向计算',
     reverse: '反向计算',
     density: '密度互查',
+    yield: '产率计算',
     chart: '浓度图表'
   },
   input: {
@@ -70,7 +71,7 @@ export default {
     outOfRange: '输入值超出数据范围'
   },
   keyboard: {
-    hints: 'Enter 计算 · Esc 清空 · Ctrl+A 全选 · Ctrl+1~4 切换功能'
+    hints: 'Enter 计算 · Esc 清空 · Ctrl+A 全选 · Ctrl+1~5 切换功能'
   },
   process: {
     title: '计算过程',
@@ -83,10 +84,27 @@ export default {
     uncertainty: '不确定度估算',
     reverseInterpolate: '反向插值查表',
     massToVol: '质量分数转体积分数',
-    searchInTable: '在酒精计-温度-标准浓度表中搜索'
+    searchInTable: '在酒精计-温度-标准浓度表中搜索',
+    yieldRawActive: '原料活性成分',
+    yieldProdActive: '产品活性成分',
+    yieldResult: '产率计算'
   },
   language: {
     zh: '中文',
     en: 'English'
+  },
+  yield: {
+    title: '产率计算',
+    rawMass: '原料质量',
+    rawConc: '原料浓度',
+    productMass: '产品质量',
+    productConc: '产品浓度',
+    rawActive: '原料活性成分',
+    prodActive: '产品活性成分',
+    rawInput: '原料投入',
+    prodInput: '产品产出',
+    resultLabel: '计算产率',
+    emptyTitle: '计算产率',
+    emptyHint: '输入原料和产品的质量与浓度，计算活性成分产率'
   }
 };

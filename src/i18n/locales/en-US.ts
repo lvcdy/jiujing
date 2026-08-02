@@ -7,6 +7,7 @@ export default {
     forward: 'Forward',
     reverse: 'Reverse',
     density: 'Density',
+    yield: 'Yield',
     chart: 'Chart'
   },
   input: {
@@ -70,7 +71,7 @@ export default {
     outOfRange: 'Value out of data range'
   },
   keyboard: {
-    hints: 'Enter Calculate · Esc Clear · Ctrl+A Select · Ctrl+1~4 Switch Tab'
+    hints: 'Enter Calculate · Esc Clear · Ctrl+A Select · Ctrl+1~5 Switch Tab'
   },
   process: {
     title: 'Calculation Process',
@@ -83,10 +84,27 @@ export default {
     uncertainty: 'Uncertainty Estimation',
     reverseInterpolate: 'Reverse Interpolation Lookup',
     massToVol: 'Mass Fraction to Volume Fraction',
-    searchInTable: 'Search in alcohol-temperature-standard concentration table'
+    searchInTable: 'Search in alcohol-temperature-standard concentration table',
+    yieldRawActive: 'Raw Active Ingredient',
+    yieldProdActive: 'Product Active Ingredient',
+    yieldResult: 'Yield Calculation'
   },
   language: {
     zh: '中文',
     en: 'English'
+  },
+  yield: {
+    title: 'Yield Calculation',
+    rawMass: 'Raw Material Mass',
+    rawConc: 'Raw Material Concentration',
+    productMass: 'Product Mass',
+    productConc: 'Product Concentration',
+    rawActive: 'Raw Active Ingredient',
+    prodActive: 'Product Active Ingredient',
+    rawInput: 'Raw Input',
+    prodInput: 'Product Output',
+    resultLabel: 'Calculated Yield',
+    emptyTitle: 'Calculate Yield',
+    emptyHint: 'Enter mass and concentration of raw material and product to calculate active ingredient yield'
   }
 };

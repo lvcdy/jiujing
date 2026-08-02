@@ -21,6 +21,12 @@ release/
 # Tauri
 src-tauri/target/
 
+# Design files (pen.dev prototyping)
+*.pen
+
+# Source data (converted JSON is in src/assets/)
+data/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

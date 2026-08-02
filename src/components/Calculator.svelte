@@ -16,7 +16,7 @@
 
   Chart.register(LineController, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
-  type Tab = 'forward' | 'reverse' | 'density' | 'chart'
+  type Tab = 'forward' | 'reverse' | 'density' | 'chart' | 'yield'
 
   // i18n
   let lang = $state(i18n.language || 'zh-CN')
@@ -63,6 +63,14 @@
   let densityMass = $state('')
   let densityDensity = $state('')
 
+  // 产率计算
+  let yieldRawMass = $state('')
+  let yieldRawConc = $state('')
+  let yieldProductMass = $state('')
+  let yieldProductConc = $state('')
+  let yieldResult = $state('')
+  let yieldProcess = $state<ProcessStep[]>([])
+
   // 图表
   let chartAlcohol = $state('')
 
@@ -73,6 +81,10 @@
   let reverseTempEl: HTMLInputElement | undefined = $state()
   let densityInputEl: HTMLInputElement | undefined = $state()
   let volInputEl: HTMLInputElement | undefined = $state()
+  let yieldRawMassEl: HTMLInputElement | undefined = $state()
+  let yieldRawConcEl: HTMLInputElement | undefined = $state()
+  let yieldProductMassEl: HTMLInputElement | undefined = $state()
+  let yieldProductConcEl: HTMLInputElement | undefined = $state()
 
   let chartAlcoholEl: HTMLInputElement | undefined = $state()
   let canvasEl: HTMLCanvasElement | undefined = $state()
@@ -363,11 +375,45 @@
     }
   }
 
+  function doYieldCalc() {
+    error = ''
+    yieldResult = ''
+    yieldProcess = []
+    if (!yieldRawMass || !yieldRawConc || !yieldProductMass || !yieldProductConc) {
+      error = t('error.required'); return
+    }
+    const rawMass = Number(yieldRawMass)
+    const rawConc = Number(yieldRawConc)
+    const prodMass = Number(yieldProductMass)
+    const prodConc = Number(yieldProductConc)
+    if (isNaN(rawMass) || isNaN(rawConc) || isNaN(prodMass) || isNaN(prodConc)) {
+      error = t('error.failed'); return
+    }
+    if (rawMass <= 0 || rawConc <= 0 || prodMass <= 0 || prodConc <= 0) {
+      error = t('error.failed'); return
+    }
+
+    const rawActive = rawMass * rawConc / 100
+    const prodActive = prodMass * prodConc / 100
+    const yieldVal = (prodActive / rawActive) * 100
+
+    yieldResult = yieldVal.toFixed(2)
+
+    yieldProcess = [
+      { label: t('process.inputParams'), detail: `原料 ${rawMass}kg × ${rawConc}%`, formula: `m₀=${rawMass}kg, C₀=${rawConc}%` },
+      { label: t('process.inputParams'), detail: `产品 ${prodMass}kg × ${prodConc}%`, formula: `m₁=${prodMass}kg, C₁=${prodConc}%` },
+      { label: t('process.yieldRawActive'), detail: `原料活性成分: ${rawActive.toFixed(4)}kg`, formula: `A₀ = ${rawMass} × ${rawConc}/100 = ${rawActive.toFixed(4)}` },
+      { label: t('process.yieldProdActive'), detail: `产品活性成分: ${prodActive.toFixed(4)}kg`, formula: `A₁ = ${prodMass} × ${prodConc}/100 = ${prodActive.toFixed(4)}` },
+      { label: t('process.yieldResult'), detail: `产率 = ${yieldVal.toFixed(2)}%`, formula: `η = ${prodActive.toFixed(4)} / ${rawActive.toFixed(4)} × 100 = ${yieldVal.toFixed(2)}%` },
+    ]
+  }
+
   function clearAll() {
     alcohol = ''; temperature = ''; forwardVol = ''; forwardMass = ''; forwardDensity = ''
     forwardUncVol = ''; forwardUncMass = ''; forwardProcess = []
     targetVol = ''; reverseTemp = ''; reverseResult = ''; reverseProcess = []
     densityInput = ''; volInput = ''; densityVol = ''; densityMass = ''; densityDensity = ''
+    yieldRawMass = ''; yieldRawConc = ''; yieldProductMass = ''; yieldProductConc = ''; yieldResult = ''; yieldProcess = []
     chartAlcohol = ''; error = ''
   }
 
@@ -404,6 +450,8 @@
         else error = t('error.required')
       } else if (activeTab === 'density') {
         doDensityLookup()
+      } else if (activeTab === 'yield') {
+        doYieldCalc()
       } else if (activeTab === 'chart') {
         if (!chartAlcohol) error = t('error.required')
       }
@@ -413,6 +461,8 @@
         alcohol: v => alcohol = v, temperature: v => temperature = v,
         targetVol: v => targetVol = v, reverseTemp: v => reverseTemp = v,
         densityInput: v => densityInput = v, volInput: v => volInput = v,
+        yieldRawMass: v => yieldRawMass = v, yieldRawConc: v => yieldRawConc = v,
+        yieldProductMass: v => yieldProductMass = v, yieldProductConc: v => yieldProductConc = v,
         chartAlcohol: v => chartAlcohol = v,
       }
       setters[field]?.('')
@@ -422,7 +472,10 @@
       const refs: Record<string, HTMLInputElement | undefined> = {
         alcohol: alcoholInputEl, temperature: temperatureInputEl,
         targetVol: targetVolEl, reverseTemp: reverseTempEl,
-        densityInput: densityInputEl, volInput: volInputEl, chartAlcohol: chartAlcoholEl,
+        densityInput: densityInputEl, volInput: volInputEl,
+        yieldRawMass: yieldRawMassEl, yieldRawConc: yieldRawConcEl,
+        yieldProductMass: yieldProductMassEl, yieldProductConc: yieldProductConcEl,
+        chartAlcohol: chartAlcoholEl,
       }
       refs[field]?.select()
     }
@@ -436,7 +489,7 @@
       return
     }
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
-      const tabMap: Record<string, Tab> = { '1': 'forward', '2': 'reverse', '3': 'density', '4': 'chart' }
+      const tabMap: Record<string, Tab> = { '1': 'forward', '2': 'reverse', '3': 'density', '4': 'yield', '5': 'chart' }
       if (tabMap[e.key]) {
         e.preventDefault()
         activeTab = tabMap[e.key]
@@ -446,6 +499,7 @@
           if (activeTab === 'forward') alcoholInputEl?.focus()
           else if (activeTab === 'reverse') targetVolEl?.focus()
           else if (activeTab === 'density') densityInputEl?.focus()
+          else if (activeTab === 'yield') yieldRawMassEl?.focus()
           else if (activeTab === 'chart') chartAlcoholEl?.focus()
         }, 50)
       }
@@ -501,6 +555,7 @@
           { id: 'forward', icon: '📊', label: t('tab.forward') },
           { id: 'reverse', icon: '🔄', label: t('tab.reverse') },
           { id: 'density', icon: '📐', label: t('tab.density') },
+          { id: 'yield',   icon: '⚖️', label: t('tab.yield') },
           { id: 'chart',   icon: '📈', label: t('tab.chart') },
         ] as tab}
           <button class="seg-tab" class:active={activeTab === tab.id}
@@ -614,6 +669,59 @@
             {/if}
           </div>
 
+        {:else if activeTab === 'yield'}
+          <div class="card">
+            <h2 class="card-title">{t('yield.title')}</h2>
+            <div class="input-field">
+              <label for="yield-raw-mass">{t('yield.rawMass')}</label>
+              <div class="input-box">
+                <input id="yield-raw-mass" bind:this={yieldRawMassEl} type="text" inputmode="decimal" value={yieldRawMass}
+                  oninput={(e) => handleInput(e.currentTarget.value, v => yieldRawMass = v)}
+                  onkeydown={(e) => handleKeyDown(e, 'yieldRawMass')}
+                  placeholder="0.0" disabled={loading} />
+                <span class="input-unit">kg</span>
+              </div>
+            </div>
+            <div class="input-field">
+              <label for="yield-raw-conc">{t('yield.rawConc')}</label>
+              <div class="input-box">
+                <input id="yield-raw-conc" bind:this={yieldRawConcEl} type="text" inputmode="decimal" value={yieldRawConc}
+                  oninput={(e) => handleInput(e.currentTarget.value, v => yieldRawConc = v)}
+                  onkeydown={(e) => handleKeyDown(e, 'yieldRawConc')}
+                  placeholder="0.0" disabled={loading} />
+                <span class="input-unit">%</span>
+              </div>
+            </div>
+            <div class="divider-text">—— → ——</div>
+            <div class="input-field">
+              <label for="yield-product-mass">{t('yield.productMass')}</label>
+              <div class="input-box">
+                <input id="yield-product-mass" bind:this={yieldProductMassEl} type="text" inputmode="decimal" value={yieldProductMass}
+                  oninput={(e) => handleInput(e.currentTarget.value, v => yieldProductMass = v)}
+                  onkeydown={(e) => handleKeyDown(e, 'yieldProductMass')}
+                  placeholder="0.0" disabled={loading} />
+                <span class="input-unit">kg</span>
+              </div>
+            </div>
+            <div class="input-field">
+              <label for="yield-product-conc">{t('yield.productConc')}</label>
+              <div class="input-box">
+                <input id="yield-product-conc" bind:this={yieldProductConcEl} type="text" inputmode="decimal" value={yieldProductConc}
+                  oninput={(e) => handleInput(e.currentTarget.value, v => yieldProductConc = v)}
+                  onkeydown={(e) => handleKeyDown(e, 'yieldProductConc')}
+                  placeholder="0.0" disabled={loading} />
+                <span class="input-unit">%</span>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn-primary" onclick={doYieldCalc} disabled={loading || !yieldRawMass || !yieldRawConc || !yieldProductMass || !yieldProductConc}>{t('button.calculate')}</button>
+              <button class="btn-secondary" onclick={clearAll} disabled={loading}>{t('button.clear')}</button>
+            </div>
+            {#if error}
+              <div class="error-toast"><span>⚠️</span>{error}</div>
+            {/if}
+          </div>
+
         {:else if activeTab === 'chart'}
           <div class="card">
             <h2 class="card-title">图表设置</h2>
@@ -642,7 +750,7 @@
                 <span class="meta-badge">✓ 计算完成</span>
               </div>
               <div class="result-hero">
-                <span class="hero-number">{forwardMass.split('.')[0]}</span>
+                <span class="hero-number">{forwardMass}</span>
                 <span class="hero-unit">{t('result.unit.mass')}</span>
               </div>
               <div class="card-divider"></div>
@@ -756,6 +864,49 @@
               </div>
             </div>
           {/if}
+          <div class="keyboard-hints">{t('keyboard.hints')}</div>
+
+        {:else if activeTab === 'yield'}
+          {#if yieldResult}
+            <div class="card">
+              <div class="result-meta">
+                <span class="meta-label">{t('yield.resultLabel')}</span>
+                <span class="meta-badge">✓ 计算完成</span>
+              </div>
+              <div class="result-hero">
+                <span class="hero-number">{yieldResult}</span>
+                <span class="hero-unit">%</span>
+              </div>
+              <div class="card-divider"></div>
+              <div class="secondary-results">
+                <div class="sec-row">
+                  <span class="sec-label">{t('yield.rawActive')}</span>
+                  <span class="sec-value">{(Number(yieldRawMass) * Number(yieldRawConc) / 100).toFixed(4)} kg</span>
+                </div>
+                <div class="sec-row">
+                  <span class="sec-label">{t('yield.prodActive')}</span>
+                  <span class="sec-value">{(Number(yieldProductMass) * Number(yieldProductConc) / 100).toFixed(4)} kg</span>
+                </div>
+                <div class="sec-row">
+                  <span class="sec-label">{t('yield.rawInput')}</span>
+                  <span class="sec-value">{yieldRawMass}kg × {yieldRawConc}%</span>
+                </div>
+                <div class="sec-row">
+                  <span class="sec-label">{t('yield.prodInput')}</span>
+                  <span class="sec-value">{yieldProductMass}kg × {yieldProductConc}%</span>
+                </div>
+              </div>
+            </div>
+          {:else}
+            <div class="card">
+              <div class="empty-state">
+                <div class="empty-icon">⚖️</div>
+                <div class="empty-title">{t('yield.emptyTitle')}</div>
+                <div class="empty-hint">{t('yield.emptyHint')}</div>
+              </div>
+            </div>
+          {/if}
+          <ProcessSteps steps={yieldProcess} />
           <div class="keyboard-hints">{t('keyboard.hints')}</div>
 
         {:else if activeTab === 'chart'}
