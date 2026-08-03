@@ -1,0 +1,220 @@
+name: Release Packages
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NODE_VERSION: 24
+  PNPM_VERSION: 10
+  JAVA_VERSION: 21
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
+jobs:
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          retention-days: 1
+
+  build-windows:
+    name: Windows (${{ matrix.arch }})
+    needs: build-frontend
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+          - arch: x86
+            target: i686-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/sync-version.js
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: mozilla-actions/sccache-action@v0.0.9
+        with:
+          version: "v0.10.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+      - run: pnpm exec tauri build --target ${{ matrix.target }}
+      - shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $releaseDir = "src-tauri/target/${{ matrix.target }}/release"
+          $portableDir = "jiujing-tauri-$version-windows-${{ matrix.arch }}-portable"
+          New-Item -ItemType Directory -Path $portableDir -Force
+          Copy-Item "$releaseDir/jiujing-tauri.exe" "$portableDir/酒精浓度计算器.exe"
+          Copy-Item "$releaseDir/*.dll" "$portableDir/" -ErrorAction SilentlyContinue
+          Compress-Archive -Path "$portableDir" -DestinationPath "$portableDir.zip"
+          Remove-Item -Recurse -Force $portableDir
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}
+          path: jiujing-tauri-*.zip
+          retention-days: 7
+          if-no-files-found: error
+
+  build-android:
+    name: Android (${{ matrix.arch }})
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-linux-android
+            tauri_target: aarch64
+          - arch: armv7
+            target: armv7-linux-androideabi
+            tauri_target: armv7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: android-actions/setup-android@v3
+      - name: Detect NDK version
+        run: |
+          NDK_VER=$(ls -d "$ANDROID_HOME/ndk/"*/ 2>/dev/null | head -1 | xargs basename 2>/dev/null || true)
+          if [ -z "$NDK_VER" ]; then
+            sdkmanager "ndk;latest"
+            NDK_VER=$(ls -d "$ANDROID_HOME/ndk/"*/ 2>/dev/null | head -1 | xargs basename 2>/dev/null || true)
+          fi
+          if [ -z "$NDK_VER" ]; then
+            echo "::error::Failed to find or install any NDK version"
+            exit 1
+          fi
+          echo "NDK_VERSION=$NDK_VER" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VER" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-android-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-android-
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/sync-version.js
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: mozilla-actions/sccache-action@v0.0.9
+        with:
+          version: "v0.10.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: android-${{ matrix.target }}
+          cache-on-failure: true
+      - name: Init Android project
+        run: pnpm exec tauri android init
+      - name: Patch NDK version in generated project
+        run: |
+          GRADLE_FILE="src-tauri/gen/android/app/build.gradle.kts"
+          if [ -f "$GRADLE_FILE" ]; then
+            sed -i "s/ndkVersion = \"[^\"]*\"/ndkVersion = \"$NDK_VERSION\"/" "$GRADLE_FILE"
+          fi
+      - name: Setup Android signing
+        env:
+          ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEY_BASE64" ]; then
+            base64 -d <<< "$ANDROID_KEY_BASE64" > "$RUNNER_TEMP/keystore.jks"
+          else
+            keytool -genkeypair -v \
+              -keystore "$RUNNER_TEMP/keystore.jks" \
+              -alias debug -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android \
+              -dname "CN=Debug, OU=Debug, O=Debug, L=Debug, ST=Debug, C=CN"
+            echo "KEY_ALIAS=debug" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=android" >> "$GITHUB_ENV"
+          fi
+          node scripts/setup-android-signing.js "$RUNNER_TEMP/keystore.jks"
+      - name: Build Android
+        run: pnpm exec tauri android build --target ${{ matrix.tauri_target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ matrix.arch }}
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+          retention-days: 7
+          if-no-files-found: error
+
+  release:
+    name: Publish Release
+    needs:
+      - build-windows
+      - build-android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: "*"
+          merge-multiple: true
+      - run: ls -R release-assets
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release-assets/**/*.zip
+            release-assets/**/*.apk
+            release-assets/**/*.aab
