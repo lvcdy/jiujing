@@ -11,7 +11,6 @@
   import i18n from '../i18n'
   import ProcessSteps from './ProcessSteps.svelte'
   import type { ProcessStep } from './ProcessSteps.svelte'
-  import ResultCard from './ResultCard.svelte'
   import './Calculator.css'
 
   Chart.register(LineController, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
@@ -20,7 +19,8 @@
 
   // i18n
   let lang = $state(i18n.language || 'zh-CN')
-  i18n.on('languageChanged', (lng: string) => { lang = lng })
+  const i18nHandler = (lng: string) => { lang = lng }
+  i18n.on('languageChanged', i18nHandler)
   // t 必须依赖 lang 才能在语言切换时触发响应式更新
   const t = $derived.by(() => {
     void lang
@@ -182,12 +182,11 @@
     }
   })
 
-  // 图表效果
+  // 图表效果（复用 Chart 实例，避免反复销毁重建）
   $effect(() => {
     void canvasEl; void chartData; void tempUnit
 
-    if (chartInstance) { chartInstance.destroy(); chartInstance = null }
-    if (!canvasEl || !chartData) return
+    if (!canvasEl) return
 
     const isLight = !isDark
     const tickColor = isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)'
@@ -195,6 +194,42 @@
     const gridColor = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)'
     const tooltipBg = isLight ? 'rgba(255,255,255,0.95)' : 'rgba(20, 20, 40, 0.9)'
     const tooltipText = isLight ? '#1c1c22' : '#fff'
+
+    const hasData = chartData !== null
+
+    if (chartInstance) {
+      // 更新现有图表数据
+      if (hasData) {
+        chartInstance.data.labels = chartData.labels
+        chartInstance.data.datasets[0].data = chartData.values
+        chartInstance.data.datasets[0].label = `${chartAlcohol}%`
+        chartInstance.data.datasets[0].backgroundColor = isLight ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.12)'
+      }
+      // 更新刻度颜色
+      if (chartInstance.options.scales?.x) {
+        chartInstance.options.scales.x.ticks = { color: tickColor, font: { size: 10 }, maxTicksLimit: 12 }
+        chartInstance.options.scales.x.grid = { color: gridColor }
+        chartInstance.options.scales.x.title = { display: true, text: t('chart.xAxis'), color: labelColor, font: { size: 11 } }
+      }
+      if (chartInstance.options.scales?.y) {
+        chartInstance.options.scales.y.ticks = { color: tickColor, font: { size: 10 } }
+        chartInstance.options.scales.y.grid = { color: gridColor }
+        chartInstance.options.scales.y.title = { display: true, text: t('chart.yAxis'), color: labelColor, font: { size: 11 } }
+      }
+      if (chartInstance.options.plugins?.tooltip) {
+        chartInstance.options.plugins.tooltip = {
+          backgroundColor: tooltipBg,
+          titleColor: tooltipText, bodyColor: tooltipText,
+          borderColor: isLight ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.3)', borderWidth: 1,
+          cornerRadius: 8, padding: 10,
+        }
+      }
+      chartInstance.update('none')
+      return
+    }
+
+    // 首次创建图表（需要有数据）
+    if (!hasData) return
 
     chartInstance = new Chart(canvasEl, {
       type: 'line',
@@ -208,7 +243,7 @@
           borderWidth: 2.5,
           pointRadius: 3,
           pointBackgroundColor: '#3b82f6',
-          pointBorderColor: isLight ? '#fff' : '#fff',
+          pointBorderColor: '#fff',
           pointBorderWidth: 1.5,
           fill: true,
           tension: 0.3,
@@ -245,6 +280,7 @@
 
   onDestroy(() => {
     if (chartInstance) { chartInstance.destroy(); chartInstance = null }
+    i18n.off('languageChanged', i18nHandler)
   })
 
   // 辅助函数
@@ -262,7 +298,13 @@
   }
 
   function handleInput(value: string, setter: (v: string) => void) {
-    setter(value.replace(/。/g, '.').replace(/[^0-9.-]/g, '').replace(/\.{2,}/g, '.').replace(/^(-?\d+\.\d+).*$/, '$1'))
+    // 全角句号→半角，只保留数字和小数点，处理连续小数点，截断多余小数点
+    const cleaned = value
+      .replace(/。/g, '.')
+      .replace(/[^\d.]/g, '')
+      .replace(/(\..*)\./g, '$1')
+      .replace(/^(\d*\.?\d*).*$/, '$1')
+    setter(cleaned)
   }
 
   // 计算
@@ -372,7 +414,7 @@
     steps.push({
       step: stepNum++,
       label: t('process.massToVol'),
-      detail: `质量分数 ${targetVol}% m → 体积分数 ${volFromMass}% vol`,
+      detail: `${t('result.massPercent')}: ${targetVol}% m → ${t('result.volFraction')}: ${volFromMass}% vol`,
       formula: `V = mass_to_vol(m=${targetVol}%) = ${volFromMass}% vol`
     })
 
@@ -442,11 +484,11 @@
     yieldResult = yieldVal.toFixed(2)
 
     yieldProcess = [
-      { label: t('process.inputParams'), detail: `原料 ${rawMass}kg × ${rawConc}%`, formula: `m₀=${rawMass}kg, C₀=${rawConc}%` },
-      { label: t('process.inputParams'), detail: `产品 ${prodMass}kg × ${prodConc}%`, formula: `m₁=${prodMass}kg, C₁=${prodConc}%` },
-      { label: t('process.yieldRawActive'), detail: `原料活性成分: ${rawActive.toFixed(4)}kg`, formula: `A₀ = ${rawMass} × ${rawConc}/100 = ${rawActive.toFixed(4)}` },
-      { label: t('process.yieldProdActive'), detail: `产品活性成分: ${prodActive.toFixed(4)}kg`, formula: `A₁ = ${prodMass} × ${prodConc}/100 = ${prodActive.toFixed(4)}` },
-      { label: t('process.yieldResult'), detail: `产率 = ${yieldVal.toFixed(2)}%`, formula: `η = ${prodActive.toFixed(4)} / ${rawActive.toFixed(4)} × 100 = ${yieldVal.toFixed(2)}%` },
+      { step: 1, label: t('process.inputParams'), detail: `${t('yield.rawMass')}: ${rawMass}kg × ${rawConc}%`, formula: `m₀=${rawMass}kg, C₀=${rawConc}%` },
+      { step: 2, label: t('process.inputParams'), detail: `${t('yield.productMass')}: ${prodMass}kg × ${prodConc}%`, formula: `m₁=${prodMass}kg, C₁=${prodConc}%` },
+      { step: 3, label: t('process.yieldRawActive'), detail: `${t('yield.rawActive')}: ${rawActive.toFixed(4)}kg`, formula: `A₀ = ${rawMass} × ${rawConc}/100 = ${rawActive.toFixed(4)}` },
+      { step: 4, label: t('process.yieldProdActive'), detail: `${t('yield.prodActive')}: ${prodActive.toFixed(4)}kg`, formula: `A₁ = ${prodMass} × ${prodConc}/100 = ${prodActive.toFixed(4)}` },
+      { step: 5, label: t('process.yieldResult'), detail: `${t('yield.resultLabel')}: ${yieldVal.toFixed(2)}%`, formula: `η = ${prodActive.toFixed(4)} / ${rawActive.toFixed(4)} × 100 = ${yieldVal.toFixed(2)}%` },
     ]
   }
 
@@ -616,7 +658,7 @@
       <div class="panel">
         {#if activeTab === 'forward'}
           <div class="card">
-            <h2 class="card-title">输入参数</h2>
+            <h2 class="card-title">{t('ui.cardTitle.inputParams')}</h2>
             <div class="input-field">
               <label for="alcohol-input">{t('input.alcohol')}</label>
               <div class="input-box" class:has-error={!!error}>
@@ -648,7 +690,7 @@
 
         {:else if activeTab === 'reverse'}
           <div class="card">
-            <h2 class="card-title">输入参数</h2>
+            <h2 class="card-title">{t('ui.cardTitle.inputParams')}</h2>
             <div class="input-field">
               <label for="target-vol-input">{t('input.targetMass')}</label>
               <div class="input-box">
@@ -680,7 +722,7 @@
 
         {:else if activeTab === 'density'}
           <div class="card">
-            <h2 class="card-title">密度 → 酒精度查表</h2>
+            <h2 class="card-title">{t('ui.cardTitle.densityLookup')}</h2>
             <div class="input-field">
               <label for="density-input">{t('input.density')}</label>
               <div class="input-box">
@@ -766,7 +808,7 @@
 
         {:else if activeTab === 'chart'}
           <div class="card">
-            <h2 class="card-title">图表设置</h2>
+            <h2 class="card-title">{t('ui.cardTitle.chartSettings')}</h2>
             <div class="input-field">
               <label for="chart-alcohol-input">{t('chart.alcoholFixed')}</label>
               <div class="input-box">
@@ -789,7 +831,7 @@
             <div class="card">
               <div class="result-meta">
                 <span class="meta-label">{t('result.standard')}</span>
-                <span class="meta-badge">✓ 计算完成</span>
+                <span class="meta-badge">{t('ui.badge.calcDone')}</span>
               </div>
               <div class="result-hero">
                 <span class="hero-number">{forwardMass}</span>
@@ -825,8 +867,8 @@
             <div class="card">
               <div class="empty-state">
                 <div class="empty-icon">🧪</div>
-                <div class="empty-title">输入参数开始计算</div>
-                <div class="empty-hint">输入酒精计读数和温度，点击计算按钮获取标准酒精度</div>
+                <div class="empty-title">{t('emptyState.forward.title')}</div>
+                <div class="empty-hint">{t('emptyState.forward.hint')}</div>
               </div>
             </div>
           {/if}
@@ -838,7 +880,7 @@
             <div class="card">
               <div class="result-meta">
                 <span class="meta-label">{t('result.alcoholReading')}</span>
-                <span class="meta-badge">✓ 计算完成</span>
+                <span class="meta-badge">{t('ui.badge.calcDone')}</span>
               </div>
               <div class="result-hero">
                 <span class="hero-number">{reverseResult}</span>
@@ -847,11 +889,11 @@
               <div class="card-divider"></div>
               <div class="secondary-results">
                 <div class="sec-row">
-                  <span class="sec-label">目标质量分数</span>
+                  <span class="sec-label">{t('ui.secLabel.targetMass')}</span>
                   <span class="sec-value">{targetVol}% m</span>
                 </div>
                 <div class="sec-row">
-                  <span class="sec-label">参考温度</span>
+                  <span class="sec-label">{t('ui.secLabel.refTemp')}</span>
                   <span class="sec-value">{reverseTemp}{tempUnit}</span>
                 </div>
               </div>
@@ -860,8 +902,8 @@
             <div class="card">
               <div class="empty-state">
                 <div class="empty-icon">🔄</div>
-                <div class="empty-title">输入目标质量分数</div>
-                <div class="empty-hint">输入需要的标准质量分数和当前温度，获取酒精计应有读数</div>
+                <div class="empty-title">{t('emptyState.reverse.title')}</div>
+                <div class="empty-hint">{t('emptyState.reverse.hint')}</div>
               </div>
             </div>
           {/if}
@@ -873,7 +915,7 @@
             <div class="card">
               <div class="result-meta">
                 <span class="meta-label">{t('result.massPercent')}</span>
-                <span class="meta-badge">✓ 查表完成</span>
+                <span class="meta-badge">{t('ui.badge.lookupDone')}</span>
               </div>
               <div class="result-hero">
                 <span class="hero-number">{densityMass}</span>
@@ -882,17 +924,17 @@
               <div class="card-divider"></div>
               <div class="secondary-results">
                 <div class="sec-row">
-                  <span class="sec-label">体积分数</span>
+                  <span class="sec-label">{t('ui.secLabel.volFraction')}</span>
                   <span class="sec-value">{densityVol}% vol</span>
                 </div>
                 {#if densityDensity}
                   <div class="sec-row">
-                    <span class="sec-label">精确密度值</span>
+                    <span class="sec-label">{t('ui.secLabel.exactDensity')}</span>
                     <span class="sec-value">{densityDensity} g/cm³</span>
                   </div>
                 {/if}
                 <div class="sec-row">
-                  <span class="sec-label">参考温度</span>
+                  <span class="sec-label">{t('ui.secLabel.refTemp')}</span>
                   <span class="sec-value">20℃</span>
                 </div>
               </div>
@@ -901,8 +943,8 @@
             <div class="card">
               <div class="empty-state">
                 <div class="empty-icon">📐</div>
-                <div class="empty-title">密度查表</div>
-                <div class="empty-hint">输入溶液密度或酒精度，查表获取对应数值</div>
+                <div class="empty-title">{t('emptyState.density.title')}</div>
+                <div class="empty-hint">{t('emptyState.density.hint')}</div>
               </div>
             </div>
           {/if}
@@ -913,7 +955,7 @@
             <div class="card">
               <div class="result-meta">
                 <span class="meta-label">{t('yield.resultLabel')}</span>
-                <span class="meta-badge">✓ 计算完成</span>
+                <span class="meta-badge">{t('ui.badge.calcDone')}</span>
               </div>
               <div class="result-hero">
                 <span class="hero-number">{yieldResult}</span>
@@ -960,8 +1002,8 @@
             {:else}
               <div class="empty-state">
                 <div class="empty-icon">📈</div>
-                <div class="empty-title">浓度曲线图</div>
-                <div class="empty-hint">输入酒精度后自动生成温度-浓度关系曲线</div>
+                <div class="empty-title">{t('emptyState.chart.title')}</div>
+                <div class="empty-hint">{t('emptyState.chart.hint')}</div>
               </div>
             {/if}
           </div>

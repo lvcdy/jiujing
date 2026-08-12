@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte'
   import i18n from '../i18n'
 
   export interface ProcessStep {
@@ -14,8 +15,13 @@
 
   // i18n 响应式
   let lang = $state(i18n.language || 'zh-CN')
-  i18n.on('languageChanged', (lng: string) => { lang = lng })
+  const i18nHandler = (lng: string) => { lang = lng }
+  i18n.on('languageChanged', i18nHandler)
   const t = $derived.by(() => { void lang; return (key: string) => i18n.t(key) })
+
+  onDestroy(() => {
+    i18n.off('languageChanged', i18nHandler)
+  })
 </script>
 
 {#if steps.length > 0}

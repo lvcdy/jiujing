@@ -111,5 +111,40 @@ export default {
     resultLabel: '计算产率',
     emptyTitle: '计算产率',
     emptyHint: '输入原料和产品的质量与浓度，计算活性成分产率'
+  },
+  ui: {
+    cardTitle: {
+      inputParams: '输入参数',
+      densityLookup: '密度 → 酒精度查表',
+      chartSettings: '图表设置'
+    },
+    badge: {
+      calcDone: '✓ 计算完成',
+      lookupDone: '✓ 查表完成'
+    },
+    secLabel: {
+      targetMass: '目标质量分数',
+      refTemp: '参考温度',
+      volFraction: '体积分数',
+      exactDensity: '精确密度值'
+    }
+  },
+  emptyState: {
+    forward: {
+      title: '输入参数开始计算',
+      hint: '输入酒精计读数和温度，点击计算按钮获取标准酒精度'
+    },
+    reverse: {
+      title: '输入目标质量分数',
+      hint: '输入需要的标准质量分数和当前温度，获取酒精计应有读数'
+    },
+    density: {
+      title: '密度查表',
+      hint: '输入溶液密度或酒精度，查表获取对应数值'
+    },
+    chart: {
+      title: '浓度曲线图',
+      hint: '输入酒精度后自动生成温度-浓度关系曲线'
+    }
   }
 };

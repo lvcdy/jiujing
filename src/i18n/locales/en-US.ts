@@ -111,5 +111,40 @@ export default {
     resultLabel: 'Calculated Yield',
     emptyTitle: 'Calculate Yield',
     emptyHint: 'Enter mass and concentration of raw material and product to calculate active ingredient yield'
+  },
+  ui: {
+    cardTitle: {
+      inputParams: 'Input Parameters',
+      densityLookup: 'Density → Alcohol Lookup',
+      chartSettings: 'Chart Settings'
+    },
+    badge: {
+      calcDone: '✓ Calculation Done',
+      lookupDone: '✓ Lookup Done'
+    },
+    secLabel: {
+      targetMass: 'Target Mass Fraction',
+      refTemp: 'Reference Temperature',
+      volFraction: 'Volume Fraction',
+      exactDensity: 'Exact Density'
+    }
+  },
+  emptyState: {
+    forward: {
+      title: 'Enter Parameters to Calculate',
+      hint: 'Enter alcohol meter reading and temperature, click calculate to get standard alcohol concentration'
+    },
+    reverse: {
+      title: 'Enter Target Mass Fraction',
+      hint: 'Enter desired standard mass fraction and current temperature to get the required alcohol meter reading'
+    },
+    density: {
+      title: 'Density Lookup',
+      hint: 'Enter solution density or alcohol concentration to look up corresponding values'
+    },
+    chart: {
+      title: 'Concentration Curve',
+      hint: 'Enter alcohol concentration to automatically generate the temperature-concentration curve'
+    }
   }
 };
